@@ -1,60 +1,146 @@
-import './style.css'
-import typescriptLogo from './assets/typescript.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import { setupCounter } from './counter.ts'
+import * as THREE from 'three';
+import { loadMap } from './map';
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-<section id="center">
-  <div class="hero">
-    <img src="${heroImg}" class="base" width="170" height="179">
-    <img src="${typescriptLogo}" class="framework" alt="TypeScript logo"/>
-    <img src="${viteLogo}" class="vite" alt="Vite logo" />
-  </div>
-  <div>
-    <h1>Get started</h1>
-    <p>Edit <code>src/main.ts</code> and save to test <code>HMR</code></p>
-  </div>
-  <button id="counter" type="button" class="counter"></button>
-</section>
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
 
-<div class="ticks"></div>
+const light = new THREE.DirectionalLight(0xffffff, 1.5);
+light.position.set(-1, 2, 4);
+light.castShadow = true;
+light.shadow.camera.left = -20;
+light.shadow.camera.right = 20;
+light.shadow.camera.top = 20;
+light.shadow.camera.bottom = -20;
+light.shadow.mapSize.width = 2048;
+light.shadow.mapSize.height = 2048;
+scene.add(light);
 
-<section id="next-steps">
-  <div id="docs">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#documentation-icon"></use></svg>
-    <h2>Documentation</h2>
-    <p>Your questions, answered</p>
-    <ul>
-      <li>
-        <a href="https://vite.dev/" target="_blank">
-          <img class="logo" src="${viteLogo}" alt="" />
-          Explore Vite
-        </a>
-      </li>
-      <li>
-        <a href="https://www.typescriptlang.org" target="_blank">
-          <img class="button-icon" src="${typescriptLogo}" alt="">
-          Learn more
-        </a>
-      </li>
-    </ul>
-  </div>
-  <div id="social">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#social-icon"></use></svg>
-    <h2>Connect with us</h2>
-    <p>Join the Vite community</p>
-    <ul>
-      <li><a href="https://github.com/vitejs/vite" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#github-icon"></use></svg>GitHub</a></li>
-      <li><a href="https://chat.vite.dev/" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#discord-icon"></use></svg>Discord</a></li>
-      <li><a href="https://x.com/vite_js" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#x-icon"></use></svg>X.com</a></li>
-      <li><a href="https://bsky.app/profile/vite.dev" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#bluesky-icon"></use></svg>Bluesky</a></li>
-    </ul>
-  </div>
-</section>
+const ambient = new THREE.HemisphereLight(0xb1e1ff, 0xb97a20, 0.2);
+scene.add(ambient);
 
-<div class="ticks"></div>
-<section id="spacer"></section>
-`
+const SPHERE_RADIUS = 1;
+const geometry = new THREE.SphereGeometry(SPHERE_RADIUS, 8, 8);
+const material = new THREE.MeshToonMaterial({ color: '#667db4' });
+const cube = new THREE.Mesh(geometry, material);
+cube.castShadow = true;
+cube.position.set(0, 10, 0);
+scene.add(cube);
 
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+const map = await loadMap('/strait.json');
+scene.add(map.terrain);
+if (map.water) scene.add(map.water);
+for (const m of map.models) scene.add(m);
+
+const keys = {};
+document.addEventListener("keydown", (e) => { keys[e.code] = true; });
+document.addEventListener("keyup",   (e) => { keys[e.code] = false; });
+
+const velocity = new THREE.Vector3();
+const ACCEL = 80;
+const FRICTION = 10;
+const MAX_SPEED = 10;
+const GRAVITY = -30;
+const JUMP_SPEED = 12;
+const GROUND_TOLERANCE = 0.1;
+
+const downRay = new THREE.Raycaster();
+const rayOrigin = new THREE.Vector3();
+const DOWN = new THREE.Vector3(0, -1, 0);
+
+function getGroundHeight(worldX, worldZ) {
+  rayOrigin.set(worldX, 1000, worldZ);
+  downRay.set(rayOrigin, DOWN);
+  const hits = downRay.intersectObjects(map.collidables, true);
+  return hits.length > 0 ? hits[0].point.y : -Infinity;
+}
+
+const cameraForward = new THREE.Vector3();
+const cameraRight = new THREE.Vector3();
+let onGround = false;
+let lastTime = 0;
+
+function animate(time) {
+  const dt = Math.min((time - lastTime) / 1000, 0.1);
+  lastTime = time;
+
+  if (resizeRendererToDisplaySize(renderer)) {
+    const canvas = renderer.domElement;
+    camera.aspect = canvas.clientWidth / canvas.clientHeight;
+    camera.updateProjectionMatrix();
+  }
+
+  camera.getWorldDirection(cameraForward);
+  cameraForward.y = 0;
+  cameraForward.normalize();
+  cameraRight.crossVectors(cameraForward, camera.up).normalize();
+
+  const input = new THREE.Vector3();
+  if (keys["KeyW"]) input.add(cameraForward);
+  if (keys["KeyS"]) input.sub(cameraForward);
+  if (keys["KeyD"]) input.add(cameraRight);
+  if (keys["KeyA"]) input.sub(cameraRight);
+  if (input.lengthSq() > 0) input.normalize();
+
+  velocity.x += input.x * ACCEL * dt;
+  velocity.z += input.z * ACCEL * dt;
+
+  const horizontalFriction = Math.max(0, 1 - FRICTION * dt);
+  velocity.x *= horizontalFriction;
+  velocity.z *= horizontalFriction;
+
+  const horizontalSpeed = Math.hypot(velocity.x, velocity.z);
+  if (horizontalSpeed > MAX_SPEED) {
+    velocity.x *= MAX_SPEED / horizontalSpeed;
+    velocity.z *= MAX_SPEED / horizontalSpeed;
+  }
+
+  velocity.y += GRAVITY * dt;
+
+  if (keys["Space"] && onGround) {
+    velocity.y = JUMP_SPEED;
+    onGround = false;
+  }
+
+  if (keys["KeyR"]) {
+    cube.position.set(0, 10, 0);
+    velocity.set(0, 0, 0);
+  }
+
+  cube.position.addScaledVector(velocity, dt);
+
+  const groundY = getGroundHeight(cube.position.x, cube.position.z);
+  const targetY = groundY + SPHERE_RADIUS;
+  const distanceAboveGround = cube.position.y - targetY;
+
+  if (distanceAboveGround <= GROUND_TOLERANCE) {
+    cube.position.y = targetY;
+    if (velocity.y < 0) velocity.y = 0;
+    onGround = true;
+  } else {
+    onGround = false;
+  }
+
+  const offset = new THREE.Vector3(5, 10, 5);
+  camera.position.copy(cube.position).add(offset);
+  camera.lookAt(cube.position);
+
+  cube.rotation.x = time / 2000;
+  cube.rotation.y = time / 1000;
+  renderer.render(scene, camera);
+}
+renderer.setAnimationLoop(animate);
+
+function resizeRendererToDisplaySize(renderer) {
+  const canvas = renderer.domElement;
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  const needResize = canvas.width !== width || canvas.height !== height;
+  if (needResize) {
+    renderer.setSize(width, height, false);
+  }
+  return needResize;
+}
