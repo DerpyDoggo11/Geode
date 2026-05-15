@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { loadMap } from './map';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+const loader = new GLTFLoader();
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer();
@@ -23,16 +25,31 @@ const ambient = new THREE.HemisphereLight(0xb1e1ff, 0xb97a20, 0.2);
 scene.add(ambient);
 
 const SPHERE_RADIUS = 1;
-const geometry = new THREE.SphereGeometry(SPHERE_RADIUS, 8, 8);
-const material = new THREE.MeshToonMaterial({ color: '#667db4' });
-const cube = new THREE.Mesh(geometry, material);
-cube.castShadow = true;
-cube.position.set(0, 10, 0);
-scene.add(cube);
+// const geometry = new THREE.SphereGeometry(SPHERE_RADIUS, 8, 8);
+// const material = new THREE.MeshToonMaterial({ color: '#667db4' });
+// const cube = new THREE.Mesh(geometry, material);
+// cube.castShadow = true;
+// cube.position.set(0, 10, 0);
+// scene.add(cube);
 
-const map = await loadMap('/strait.json');
+let cube;
+loader.load(
+    '/models/commander.glb',
+    (gltf) => {
+        cube = gltf.scene
+        scene.add(cube);
+    },
+    (xhr) => {
+        console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+    },
+    (error) => {
+        console.error('An error happened', error);
+    }
+);
+
+
+const map = await loadMap('/map.json', { scene });
 scene.add(map.terrain);
-if (map.water) scene.add(map.water);
 for (const m of map.models) scene.add(m);
 
 const keys = {};
