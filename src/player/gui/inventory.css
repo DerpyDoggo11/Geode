@@ -1,0 +1,183 @@
+
+#hotbar-wrapper {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  pointer-events: auto;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+#hotbar-wrapper.darkened {
+  filter: brightness(0.4);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+#healthbar {
+  position: relative;
+  width: 243px;
+  height: 27px;
+  margin-bottom: 2px;
+}
+
+.healthbar-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
+.healthbar-empty {
+  width: 100%;
+}
+
+.healthbar-filled {
+  width: 100%;
+  transition: width 0.25s ease-out;
+  background-size: 243px 27px; 
+  overflow: hidden;
+}
+
+.healthbar-ticks {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+  pointer-events: none;
+}
+
+.health-tick {
+  width: 22px;
+  height: 27px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+#hotbar {
+  width: 540px;
+  height: 109px;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+
+#inventory-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  font-family: sans-serif;
+  color: #fff;
+}
+
+#inventory-overlay.hidden {
+  display: none;
+}
+
+.inventory-panel {
+  width: 800px;
+  height: 346px;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  position: relative;
+}
+
+.equipment {
+  position: absolute;
+  top: 6%;
+  left: 4%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.character-panel {
+  position: absolute;
+  bottom: 6%;
+  left: 4%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.model-preview {
+  width: 120px;
+  height: 160px;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.stats {
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.inventory-grid {
+  position: absolute;
+  top: 6%;
+  right: 4%;
+  display: grid;
+  grid-template-columns: repeat(5, 56px);
+  gap: 6px;
+}
+
+.inventory-hotbar-row {
+  position: absolute;
+  bottom: 6%;
+  right: 4%;
+  display: flex;
+  gap: 6px;
+}
+
+.inventory-slot {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  justify-content: center;
+  align-items: center;
+  pointer-events: auto;
+}
+
+#hotbar .inventory-slot {
+  width: 80px;
+  height: 80px;
+}
+
+.slot-item {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.slot-item:active {
+  cursor: grabbing;
+}

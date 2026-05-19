@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="83.427971mm"
+   height="100.00185mm"
+   viewBox="0 0 83.427973 100.00185"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
+   sodipodi:docname="hotbarHealthBarTick.svg"
+   inkscape:export-filename="../hotbarBGExport.svg"
+   inkscape:export-xdpi="23.09091"
+   inkscape:export-ydpi="23.09091"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.17034573"
+     inkscape:cx="-1059.6098"
+     inkscape:cy="534.2077"
+     inkscape:window-width="1220"
+     inkscape:window-height="706"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1"
+     showgrid="false" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="matrix(1.8347939,0,0,1,5.3901155,-0.13229)">
+    <path
+       style="fill:#8f3066;fill-opacity:0.5;stroke-width:0.0579781"
+       d="m -2.9377226,100.13229 42.2355416,-100 h 3.234399 L 0.49683441,100.13414 Z"
+       id="path1-1"
+       sodipodi:nodetypes="ccccc" />
+  </g>
+</svg>
