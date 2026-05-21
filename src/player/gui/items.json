@@ -1,0 +1,13 @@
+{
+  "broadsword": {
+    "name": "Broadsword",
+    "slot": "weapon",
+    "image": "/gui/inventory/items/broadsword.svg",
+    "model": "/models/items/stoneSword.glb",
+    "stats": {
+      "damage": 12,
+      "speed": 3,
+      "range": 1.5
+    }
+  }
+}

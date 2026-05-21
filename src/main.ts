@@ -2,7 +2,13 @@ import * as THREE from 'three';
 import { loadMap } from './map/map';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast, StaticGeometryGenerator, MeshBVH } from 'three-mesh-bvh';
-import { createInventory, toggleInventory, setCharacterPreview, setHealth, isInventoryOpen, handleInventoryMouseMove, handleInventoryMouseUp, handleInventoryMouseDown } from './player/gui/inventory';
+import {
+  createInventory, toggleInventory, setCharacterPreview, setHealth, isInventoryOpen,
+  handleInventoryMouseMove, handleInventoryMouseUp, handleInventoryMouseDown,
+  handleInventoryRightClick, selectHotbar, toggleOffhand, onEquipChange,
+} from './player/gui/inventory';
+import { Equipment } from './player/gui/equipment';
+import { loadItems } from './player/gui/items';
 
 
 function applyToonShader(model, gradientSteps = 3) {
@@ -82,6 +88,8 @@ scene.add(collider);
 const SPHERE_RADIUS = 1;
 let cube;
 
+await loadItems('/data/items.json');
+
 const gltf = await loader.loadAsync('/models/commander.glb');
 cube = gltf.scene;
 cube.position.set(0, 10, 0);
@@ -100,6 +108,20 @@ let leftArm = cube.getObjectByName('Sphere009');
 let rightArm = cube.getObjectByName('Sphere010');
 
 scene.add(cube);
+
+const equipment = new Equipment({
+  mainhand: { parent: rightArm ?? cube, scale: 1 },
+  offhand:  { parent: leftArm  ?? cube, scale: 1 },
+  helmet:    { parent: cube, scale: 1 },
+  chestplate:{ parent: cube, scale: 1 },
+});
+
+onEquipChange((c) => {
+  equipment.equip('mainhand',  c.mainhand);
+  equipment.equip('offhand',   c.offhand);
+  equipment.equip('helmet',    c.helmet);
+  equipment.equip('chestplate', c.chestplate);
+});
 
 
 const keys = {};
@@ -137,8 +159,9 @@ document.addEventListener('mousemove', (e) => {
 
 document.addEventListener('mousedown', (e) => {
   if (!isPointerLocked) return;
-  if (isInventoryOpen() && e.button === 0) {
-    handleInventoryMouseDown();
+  if (isInventoryOpen()) {
+    if (e.button === 0) handleInventoryMouseDown();
+    else if (e.button === 2) handleInventoryRightClick();
   }
 });
 
@@ -148,6 +171,8 @@ document.addEventListener('mouseup', (e) => {
     handleInventoryMouseUp();
   }
 });
+
+document.addEventListener('contextmenu', (e) => e.preventDefault());
 
 const velocity = new THREE.Vector3();
 const ACCEL = 1500;
@@ -321,6 +346,17 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'Tab') {
     e.preventDefault();
     toggleInventory();
+    return;
+  }
+
+  if (e.code === 'Digit1') selectHotbar(0);
+  else if (e.code === 'Digit2') selectHotbar(1);
+  else if (e.code === 'Digit3') selectHotbar(2);
+  else if (e.code === 'Digit4') selectHotbar(3);
+  else if (e.code === 'Digit5') selectHotbar(4);
+
+  if (e.code === 'KeyF') {
+    toggleOffhand();
   }
 });
 

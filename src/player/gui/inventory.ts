@@ -1,11 +1,6 @@
+import { armorEquipIndex } from './equipment';
 import './inventory.css';
-
-const items = {
-  broadsword: '/gui/inventory/items/broadsword.svg',
-  dagger: '/gui/inventory/items/dagger.svg',
-  bow: '/gui/inventory/items/bow.svg',
-  arrow: '/gui/inventory/items/arrow.svg',
-};
+import { getItem, getItemImage, getItemSlot } from './items';
 
 const SLOT_BG = '/gui/inventory/inventorySlotBG.svg';
 const SLOT_SELECTED_BG = '/gui/inventory/inventorySlotSelectedBG.svg';
@@ -21,22 +16,54 @@ const CURSOR_GRAB = '/gui/inventory/cursorGrab.svg';
 const HOTBAR_SIZE = 5;
 const INVENTORY_ROWS = 3;
 const INVENTORY_COLS = 5;
-const TOTAL_SLOTS = HOTBAR_SIZE + INVENTORY_ROWS * INVENTORY_COLS;
-const EQUIP_BASE = 100;
+const GRID_SLOTS = INVENTORY_ROWS * INVENTORY_COLS;
+const TOTAL_SLOTS = HOTBAR_SIZE + GRID_SLOTS;
+export const EQUIP_BASE = 100;
+export const HELMET_SLOT = EQUIP_BASE + 0;
+export const CHESTPLATE_SLOT = EQUIP_BASE + 1;
+export const OFFHAND_SLOT = EQUIP_BASE + 2;
+const EQUIP_SLOTS = 3;
 const MAX_HP = 10;
 const TICK_COUNT = 10;
 
-const inventoryState: (string | null)[] = new Array(TOTAL_SLOTS).fill(null);
-inventoryState[0] = items.dagger;
-inventoryState[1] = items.broadsword;
-inventoryState[2] = items.bow;
-inventoryState[3] = items.arrow;
+const inventoryState: Record<number, string | null> = {};
+for (let i = 0; i < TOTAL_SLOTS; i++) inventoryState[i] = null;
+for (let i = 0; i < EQUIP_SLOTS; i++) inventoryState[EQUIP_BASE + i] = null;
 
+inventoryState[0] = 'dagger';
+inventoryState[1] = 'broadsword';
+inventoryState[2] = 'bow';
+inventoryState[3] = 'arrow';
+
+let selectedHotbarIndex = -1;
 let currentHP = MAX_HP;
 let draggedFromIndex: number | null = null;
 let fakeCursorX = window.innerWidth / 2;
 let fakeCursorY = window.innerHeight / 2;
 let draggedGhost: HTMLImageElement | null = null;
+
+type EquipChange = { mainhand: string | null; offhand: string | null; helmet: string | null; chestplate: string | null };
+const equipListeners: ((c: EquipChange) => void)[] = [];
+const hotbarListeners: ((index: number, itemId: string | null) => void)[] = [];
+
+export function onEquipChange(fn: (c: EquipChange) => void) { equipListeners.push(fn); }
+export function onHotbarSelect(fn: (index: number, itemId: string | null) => void) { hotbarListeners.push(fn); }
+
+function fireEquipChange() {
+  const mainhandId = selectedHotbarIndex === -1 ? null : inventoryState[selectedHotbarIndex];
+  const change: EquipChange = {
+    mainhand: mainhandId,
+    offhand: inventoryState[OFFHAND_SLOT],
+    helmet: inventoryState[HELMET_SLOT],
+    chestplate: inventoryState[CHESTPLATE_SLOT],
+  };
+  for (const fn of equipListeners) fn(change);
+}
+
+function fireHotbarSelect() {
+  const id = selectedHotbarIndex === -1 ? null : inventoryState[selectedHotbarIndex];
+  for (const fn of hotbarListeners) fn(selectedHotbarIndex, id);
+}
 
 function makeSlot(index: number) {
   const slot = document.createElement('div');
@@ -46,11 +73,13 @@ function makeSlot(index: number) {
   return slot;
 }
 
-function makeItemImg(src: string, index: number) {
+function makeItemImg(itemId: string, index: number) {
   const img = document.createElement('img');
-  img.src = src;
+  const src = getItemImage(itemId);
+  if (src) img.src = src;
   img.className = 'slot-item';
   img.dataset.itemIndex = String(index);
+  img.dataset.itemId = itemId;
   return img;
 }
 
@@ -62,10 +91,29 @@ function getSlotUnderCursor(): number | null {
   return Number(slot.dataset.slotIndex);
 }
 
-function startDrag(index: number, src: string) {
+function canPlaceInSlot(itemId: string | null, slotIndex: number): boolean {
+  if (itemId === null) return true;
+  if (slotIndex < TOTAL_SLOTS) return true;
+  const def = getItem(itemId);
+  if (!def) return false;
+  const required = armorEquipIndex(def.slot);
+  return required === slotIndex;
+}
+
+function swapSlots(a: number, b: number): boolean {
+  const aItem = inventoryState[a];
+  const bItem = inventoryState[b];
+  if (!canPlaceInSlot(aItem, b) || !canPlaceInSlot(bItem, a)) return false;
+  inventoryState[a] = bItem;
+  inventoryState[b] = aItem;
+  return true;
+}
+
+function startDrag(index: number, itemId: string) {
   draggedFromIndex = index;
   draggedGhost = document.createElement('img');
-  draggedGhost.src = src;
+  const src = getItemImage(itemId);
+  if (src) draggedGhost.src = src;
   draggedGhost.className = 'slot-item dragging-ghost';
   draggedGhost.style.left = `${fakeCursorX}px`;
   draggedGhost.style.top = `${fakeCursorY}px`;
@@ -84,12 +132,12 @@ function endDrag() {
     return;
   }
   const to = getSlotUnderCursor();
-  if (to !== null) {
-    const from = draggedFromIndex;
-    [inventoryState[from], inventoryState[to]] = [inventoryState[to], inventoryState[from]];
+  if (to !== null && to !== draggedFromIndex) {
+    swapSlots(draggedFromIndex, to);
   }
   cleanupDrag();
   renderInventory();
+  fireEquipChange();
 }
 
 function cleanupDrag() {
@@ -140,13 +188,30 @@ export function handleInventoryMouseMove(dx: number, dy: number) {
 export function handleInventoryMouseDown() {
   const slotIndex = getSlotUnderCursor();
   if (slotIndex === null) return;
-  const src = inventoryState[slotIndex];
-  if (!src) return;
-  startDrag(slotIndex, src);
+  const id = inventoryState[slotIndex];
+  if (!id) return;
+  startDrag(slotIndex, id);
 }
 
 export function handleInventoryMouseUp() {
   endDrag();
+}
+
+export function handleInventoryRightClick() {
+  const slotIndex = getSlotUnderCursor();
+  if (slotIndex === null) return;
+  const id = inventoryState[slotIndex];
+  if (!id) return;
+  const slotType = getItemSlot(id);
+  if (!slotType) return;
+
+  const targetIndex = armorEquipIndex(slotType);
+  if (targetIndex === null || targetIndex === slotIndex) return;
+
+  if (swapSlots(slotIndex, targetIndex)) {
+    renderInventory();
+    fireEquipChange();
+  }
 }
 
 export function isInventoryOpen() {
@@ -154,16 +219,42 @@ export function isInventoryOpen() {
   return overlay !== null && !overlay.classList.contains('hidden');
 }
 
+export function selectHotbar(index: number) {
+  if (index < 0 || index >= HOTBAR_SIZE) return;
+  selectedHotbarIndex = index === selectedHotbarIndex ? -1 : index;
+  renderInventory();
+  fireHotbarSelect();
+  fireEquipChange();
+}
+
+export function getSelectedHotbarIndex() { return selectedHotbarIndex; }
+export function getHeldItemId(): string | null {
+  return selectedHotbarIndex === -1 ? null : inventoryState[selectedHotbarIndex];
+}
+export function getOffhandItemId(): string | null { return inventoryState[OFFHAND_SLOT]; }
+
+export function toggleOffhand() {
+  if (selectedHotbarIndex === -1) return;
+  const heldId = inventoryState[selectedHotbarIndex];
+  const offId = inventoryState[OFFHAND_SLOT];
+  if (heldId === null && offId === null) return;
+  if (!canPlaceInSlot(heldId, OFFHAND_SLOT)) return;
+  inventoryState[OFFHAND_SLOT] = heldId;
+  inventoryState[selectedHotbarIndex] = offId;
+  renderInventory();
+  fireEquipChange();
+  fireHotbarSelect();
+}
+
 function renderInventory() {
   const allSlots = document.querySelectorAll<HTMLDivElement>('[data-slot-index]');
   allSlots.forEach(slot => {
     const i = Number(slot.dataset.slotIndex);
-    slot.style.backgroundImage = `url('${SLOT_BG}')`;
+    const isSelected = i === selectedHotbarIndex && i < HOTBAR_SIZE;
+    slot.style.backgroundImage = `url('${isSelected ? SLOT_SELECTED_BG : SLOT_BG}')`;
     slot.innerHTML = '';
-    const itemSrc = inventoryState[i];
-    if (itemSrc) {
-      slot.appendChild(makeItemImg(itemSrc, i));
-    }
+    const itemId = inventoryState[i];
+    if (itemId) slot.appendChild(makeItemImg(itemId, i));
   });
 }
 
@@ -228,6 +319,7 @@ function hpToColor(hpFraction: number): string {
   }
   return `rgb(${r}, ${g}, ${b})`;
 }
+
 export function setHealth(hp: number) {
   currentHP = Math.max(0, Math.min(MAX_HP, hp));
   const fraction = currentHP / MAX_HP;
@@ -235,9 +327,7 @@ export function setHealth(hp: number) {
   const highlight = document.querySelector<HTMLDivElement>('.healthbar-highlight');
 
   const SKEW = 8;
-
   const pct = fraction * 100;
-
   const usableWidth = 100 - SKEW;
   const topLeft = SKEW;
   const topRight = SKEW + (pct / 100) * usableWidth;
@@ -296,13 +386,13 @@ export function createInventory() {
 
   const equipment = document.createElement('div');
   equipment.className = 'equipment';
-  for (let i = 0; i < 3; i++) {
-    equipment.appendChild(makeSlot(EQUIP_BASE + i));
-  }
+  equipment.appendChild(makeSlot(HELMET_SLOT));
+  equipment.appendChild(makeSlot(CHESTPLATE_SLOT));
+  equipment.appendChild(makeSlot(OFFHAND_SLOT));
 
   const grid = document.createElement('div');
   grid.className = 'inventory-grid';
-  for (let i = 0; i < INVENTORY_ROWS * INVENTORY_COLS; i++) {
+  for (let i = 0; i < GRID_SLOTS; i++) {
     grid.appendChild(makeSlot(HOTBAR_SIZE + i));
   }
 
@@ -325,8 +415,12 @@ export function createInventory() {
   document.body.appendChild(overlay);
   document.body.appendChild(cursor);
 
+  overlay.addEventListener('contextmenu', e => e.preventDefault());
+
   renderInventory();
   setHealth(MAX_HP);
+  fireEquipChange();
+  fireHotbarSelect();
 }
 
 export function showInventory() {
@@ -358,6 +452,7 @@ export function toggleInventory() {
     hideInventory();
   }
 }
+
 export function setCharacterPreview(canvas: HTMLCanvasElement) {
   const container = document.getElementById('character-preview');
   if (container) {
