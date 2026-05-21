@@ -8,7 +8,7 @@
    version="1.1"
    id="svg1"
    inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
-   sodipodi:docname="broadsword.svg"
+   sodipodi:docname="ironSword.svg"
    inkscape:export-filename="broadswordExport.svg"
    inkscape:export-xdpi="29.1632"
    inkscape:export-ydpi="29.1632"
@@ -26,15 +26,17 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
-     inkscape:zoom="0.92253393"
-     inkscape:cx="46.610752"
-     inkscape:cy="234.13773"
+     inkscape:zoom="1.8450679"
+     inkscape:cx="214.08427"
+     inkscape:cy="217.87817"
      inkscape:window-width="1220"
      inkscape:window-height="706"
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
-     inkscape:current-layer="layer1" />
+     inkscape:current-layer="g1"
+     showgrid="false"
+     showguides="false" />
   <defs
      id="defs1" />
   <g
@@ -64,52 +66,52 @@
        inkscape:label="sword"
        transform="translate(-0.93912036,-0.83067533)">
       <path
-         style="fill:#dd8d9f;fill-opacity:1;stroke-width:0.114886"
+         style="fill:#c8658c;fill-opacity:1;stroke-width:0.114886"
          d="m 22.435589,65.102308 -1.1579,2.014284 5.16153,2.979048 1.154454,-2.07514 z"
          id="path1"
          sodipodi:nodetypes="ccccc" />
       <path
-         style="fill:#dd8d9f;fill-opacity:1;stroke-width:0.114886"
+         style="fill:#c8658c;fill-opacity:1;stroke-width:0.114886"
          d="m 23.89195,62.573231 -1.157897,2.014277 5.161529,2.979051 1.154452,-2.075137 z"
          id="path1-9"
          sodipodi:nodetypes="ccccc" />
       <path
-         style="fill:#c8658c;fill-opacity:1;stroke-width:0.0519434"
+         style="fill:#b63f83;fill-opacity:1;stroke-width:0.0519434"
          d="m 22.854466,65.306978 0.284858,-0.486084 4.350881,2.512219 -0.315464,0.482687 z"
          id="path1-2"
          sodipodi:nodetypes="ccccc" />
       <path
-         style="fill:#c8658c;fill-opacity:1;stroke-width:0.0519434"
+         style="fill:#b63f83;fill-opacity:1;stroke-width:0.0519434"
          d="m 24.310827,62.777896 0.284855,-0.48608 4.350882,2.512219 -0.315464,0.482687 z"
          id="path1-2-7"
          sodipodi:nodetypes="ccccc" />
       <path
-         style="fill:#dd8d9f;fill-opacity:1;stroke-width:0.114886"
+         style="fill:#c8658c;fill-opacity:1;stroke-width:0.114886"
          d="m 25.348311,60.044151 -1.1579,2.014279 5.161527,2.979048 1.154455,-2.075141 z"
          id="path1-1"
          sodipodi:nodetypes="ccccc" />
       <path
-         style="fill:#dd8d9f;fill-opacity:1;stroke-width:0.114886"
+         style="fill:#c8658c;fill-opacity:1;stroke-width:0.114886"
          d="m 26.804672,57.515071 -1.157898,2.014279 5.161526,2.979053 1.154459,-2.075147 z"
          id="path1-9-9"
          sodipodi:nodetypes="ccccc" />
       <path
-         style="fill:#c8658c;fill-opacity:1;stroke-width:0.0519434"
+         style="fill:#b63f83;fill-opacity:1;stroke-width:0.0519434"
          d="m 25.767187,60.248817 0.284855,-0.48608 4.350881,2.512216 -0.315464,0.482685 z"
          id="path1-2-4"
          sodipodi:nodetypes="ccccc" />
       <path
-         style="fill:#6b9bcf;fill-opacity:0.5;stroke-width:0.630723"
+         style="fill:#dd8d9f;fill-opacity:0.50196081;stroke-width:0.630723"
          d="M 40.064326,34.171355 26.75113,54.781788 34.064668,58.98376 45.657528,37.087567 54.141248,16.296785 Z"
          id="path1-9-9-3-2"
          sodipodi:nodetypes="cccccc" />
       <path
-         style="fill:#667db4;fill-opacity:0.5;stroke-width:0.529189"
+         style="fill:#dd8d9f;fill-opacity:0.50196081;stroke-width:0.529189"
          d="M 42.429692,33.314383 27.992715,55.499299 32.82308,58.266247 45.075037,34.507788 50.522098,22.388057 Z"
          id="path1-9-9-3-2-4"
          sodipodi:nodetypes="cccccc" />
       <path
-         style="fill:#dd8d9f;fill-opacity:1;stroke-width:0.210385"
+         style="fill:#c8658c;fill-opacity:1;stroke-width:0.210385"
          d="m 22.386395,50.708713 -1.830229,3.199165 17.308315,9.992004 1.904304,-3.380854 -2.152712,0.500365 -14.416351,-8.27324 z"
          id="path1-9-9-3-9"
          sodipodi:nodetypes="ccccccc" />

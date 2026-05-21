@@ -1,6 +1,6 @@
-import { armorEquipIndex } from './equipment';
 import './inventory.css';
-import { getItem, getItemImage, getItemSlot } from './items';
+import { getItemImage, getItem, getItemSlot, type SlotType } from './items';
+import { armorEquipIndex } from './equipment';
 
 const SLOT_BG = '/gui/inventory/inventorySlotBG.svg';
 const SLOT_SELECTED_BG = '/gui/inventory/inventorySlotSelectedBG.svg';
@@ -26,10 +26,13 @@ const EQUIP_SLOTS = 3;
 const MAX_HP = 10;
 const TICK_COUNT = 10;
 
+// Inventory + equipment: items are stored as IDs (or null).
+// Indices 0..4 = hotbar, 5..19 = grid, 100=helmet, 101=chestplate, 102=offhand.
 const inventoryState: Record<number, string | null> = {};
 for (let i = 0; i < TOTAL_SLOTS; i++) inventoryState[i] = null;
 for (let i = 0; i < EQUIP_SLOTS; i++) inventoryState[EQUIP_BASE + i] = null;
 
+// Starting items.
 inventoryState[0] = 'dagger';
 inventoryState[1] = 'broadsword';
 inventoryState[2] = 'bow';
@@ -42,12 +45,19 @@ let fakeCursorX = window.innerWidth / 2;
 let fakeCursorY = window.innerHeight / 2;
 let draggedGhost: HTMLImageElement | null = null;
 
+// Listeners. main.ts subscribes to keep the 3D world in sync with inventory state.
 type EquipChange = { mainhand: string | null; offhand: string | null; helmet: string | null; chestplate: string | null };
 const equipListeners: ((c: EquipChange) => void)[] = [];
 const hotbarListeners: ((index: number, itemId: string | null) => void)[] = [];
 
 export function onEquipChange(fn: (c: EquipChange) => void) { equipListeners.push(fn); }
 export function onHotbarSelect(fn: (index: number, itemId: string | null) => void) { hotbarListeners.push(fn); }
+
+// Re-broadcast current equipment state. Use after a late subscriber registers
+// (e.g. the preview equipment instance, which is built after createInventory()).
+export function refreshEquipment() {
+  fireEquipChange();
+}
 
 function fireEquipChange() {
   const mainhandId = selectedHotbarIndex === -1 ? null : inventoryState[selectedHotbarIndex];
@@ -91,6 +101,8 @@ function getSlotUnderCursor(): number | null {
   return Number(slot.dataset.slotIndex);
 }
 
+// True if `itemId` is allowed to live in `slotIndex`. Regular hotbar/grid slots
+// accept anything; equipment slots only accept items whose slot type matches.
 function canPlaceInSlot(itemId: string | null, slotIndex: number): boolean {
   if (itemId === null) return true;
   if (slotIndex < TOTAL_SLOTS) return true;
@@ -197,6 +209,7 @@ export function handleInventoryMouseUp() {
   endDrag();
 }
 
+// Right-click an armor item in the inventory: try to send it to its matching equipment slot.
 export function handleInventoryRightClick() {
   const slotIndex = getSlotUnderCursor();
   if (slotIndex === null) return;
@@ -219,6 +232,8 @@ export function isInventoryOpen() {
   return overlay !== null && !overlay.classList.contains('hidden');
 }
 
+// Pick a hotbar slot (0..4) as the currently held item.
+// Pressing the already-selected slot deselects (nothing held).
 export function selectHotbar(index: number) {
   if (index < 0 || index >= HOTBAR_SIZE) return;
   selectedHotbarIndex = index === selectedHotbarIndex ? -1 : index;
@@ -233,12 +248,14 @@ export function getHeldItemId(): string | null {
 }
 export function getOffhandItemId(): string | null { return inventoryState[OFFHAND_SLOT]; }
 
+// F key: move held mainhand item to/from the offhand slot.
+// Requires a hotbar slot to be selected; otherwise there's no "held" position to swap with.
 export function toggleOffhand() {
   if (selectedHotbarIndex === -1) return;
   const heldId = inventoryState[selectedHotbarIndex];
   const offId = inventoryState[OFFHAND_SLOT];
   if (heldId === null && offId === null) return;
-  if (!canPlaceInSlot(heldId, OFFHAND_SLOT)) return;
+  if (!canPlaceInSlot(heldId, OFFHAND_SLOT)) return; // only offhand-eligible items can sit in offhand
   inventoryState[OFFHAND_SLOT] = heldId;
   inventoryState[selectedHotbarIndex] = offId;
   renderInventory();
@@ -384,6 +401,7 @@ export function createInventory() {
   characterPanel.appendChild(modelPreview);
   characterPanel.appendChild(stats);
 
+  // Equipment row: helmet (100), chestplate (101), offhand (102).
   const equipment = document.createElement('div');
   equipment.className = 'equipment';
   equipment.appendChild(makeSlot(HELMET_SLOT));
@@ -415,6 +433,7 @@ export function createInventory() {
   document.body.appendChild(overlay);
   document.body.appendChild(cursor);
 
+  // Suppress the browser's native right-click menu so we can use right-click for equipping.
   overlay.addEventListener('contextmenu', e => e.preventDefault());
 
   renderInventory();

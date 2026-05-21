@@ -5,7 +5,7 @@ import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast, StaticGeometr
 import {
   createInventory, toggleInventory, setCharacterPreview, setHealth, isInventoryOpen,
   handleInventoryMouseMove, handleInventoryMouseUp, handleInventoryMouseDown,
-  handleInventoryRightClick, selectHotbar, toggleOffhand, onEquipChange,
+  handleInventoryRightClick, selectHotbar, toggleOffhand, onEquipChange, refreshEquipment,
 } from './player/gui/inventory';
 import { Equipment } from './player/gui/equipment';
 import { loadItems } from './player/gui/items';
@@ -97,18 +97,29 @@ cube.traverse(o => {
   if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
 });
 
+const light = new THREE.PointLight(0xff0000, 100, 100);
+light.position.set(50, 50, 50);
+cube.add(light);
+
+const playerLight = new THREE.PointLight(0xFFFFFF, 5, 5, 2);
+playerLight.position.set(0, -1, 0);
+cube.add(playerLight);
+
 applyToonShader(cube, 3);
 addToonOutline(cube, 0.05);
 
 const MODEL_FORWARD_OFFSET = 0;
 
+// Swapped: previously Sphere009 was labelled leftArm and the sword rendered visually on
+// the player's left. Swap them so the mainhand (right arm) is on the correct side.
 let leftEar = cube.getObjectByName('Sphere001');
 let rightEar = cube.getObjectByName('Sphere002');
-let leftArm = cube.getObjectByName('Sphere009');
-let rightArm = cube.getObjectByName('Sphere010');
+let rightArm = cube.getObjectByName('Sphere009');
+let leftArm  = cube.getObjectByName('Sphere010');
 
 scene.add(cube);
 
+// Wire main-world equipment.
 const equipment = new Equipment({
   mainhand: { parent: rightArm ?? cube, scale: 1 },
   offhand:  { parent: leftArm  ?? cube, scale: 1 },
@@ -116,11 +127,20 @@ const equipment = new Equipment({
   chestplate:{ parent: cube, scale: 1 },
 });
 
+let previewEquipment: Equipment | null = null;
+
 onEquipChange((c) => {
   equipment.equip('mainhand',  c.mainhand);
   equipment.equip('offhand',   c.offhand);
   equipment.equip('helmet',    c.helmet);
   equipment.equip('chestplate', c.chestplate);
+
+  if (previewEquipment) {
+    previewEquipment.equip('mainhand',  c.mainhand);
+    previewEquipment.equip('offhand',   c.offhand);
+    previewEquipment.equip('helmet',    c.helmet);
+    previewEquipment.equip('chestplate', c.chestplate);
+  }
 });
 
 
@@ -149,8 +169,9 @@ document.addEventListener('mousemove', (e) => {
     return;
   }
   const dx = e.movementX * MOUSE_SENSITIVITY;
-  const shiftHeld = keys['ShiftLeft'] || keys['ShiftRight'];
-  if (shiftHeld) {
+  // Look-offset moved to Alt so Shift can be used for sneaking.
+  const altHeld = keys['AltLeft'] || keys['AltRight'];
+  if (altHeld) {
     lookYawOffset += dx;
   } else {
     cameraYaw -= dx;
@@ -175,13 +196,22 @@ document.addEventListener('mouseup', (e) => {
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 
 const velocity = new THREE.Vector3();
-const ACCEL = 1500;
+const ACCEL = 450;
 const FRICTION = 10;
-const MAX_SPEED = 1000;
+const BASE_MAX_SPEED = 10;
+const SPRINT_MULTIPLIER = 5;
+const SNEAK_MULTIPLIER = 0.9;
 const GRAVITY = -200;
-const JUMP_SPEED = 100;
+const JUMP_SPEED = 30;
 const WALKABLE_SLOPE = Math.cos(THREE.MathUtils.degToRad(50));
 const MAX_STEP_DIST = SPHERE_RADIUS * 0.5;
+
+const SPRINT_STRETCH = 1.1;
+const SNEAK_HEIGHT   = 0.8;
+const SCALE_LERP_SPEED = 8;
+
+const LEDGE_PROBE_DIST = SPHERE_RADIUS;
+const LEDGE_DROP_THRESHOLD = 100;
 
 const tempBox = new THREE.Box3();
 const triPoint = new THREE.Vector3();
@@ -219,10 +249,34 @@ function resolveCollisions() {
   return grounded;
 }
 
+const scanRay = new THREE.Raycaster();
+const scanOrigin = new THREE.Vector3();
+const scanDir = new THREE.Vector3(0, -1, 0);
+
+// Raycast straight down from a point LEDGE_PROBE_DIST ahead of the player in
+// (dx, dz) — assumed unit-length. Returns true if there's a drop ahead too
+// steep to walk down while sneaking.
+function isLedgeAhead(dx: number, dz: number): boolean {
+  const feetY = cube.position.y - SPHERE_RADIUS;
+  scanOrigin.set(
+    cube.position.x + dx * LEDGE_PROBE_DIST,
+    cube.position.y + SPHERE_RADIUS,
+    cube.position.z + dz * LEDGE_PROBE_DIST,
+  );
+  scanRay.set(scanOrigin, scanDir);
+  scanRay.far = SPHERE_RADIUS * 2 + LEDGE_DROP_THRESHOLD;
+  const hits = scanRay.intersectObject(collider, false);
+  if (hits.length === 0) return true;
+  return hits[0].point.y < feetY - LEDGE_DROP_THRESHOLD;
+}
+
 const stepVec = new THREE.Vector3();
 let onGround = false;
 let lastTime = 0;
 let walkPhase = 0;
+
+let currentSprintScale = 1.5;
+let currentSneakScale = 1;
 
 const CAMERA_OFFSET = new THREE.Vector3(10, 10, 10);
 const CAMERA_DIST = Math.hypot(CAMERA_OFFSET.x, CAMERA_OFFSET.z);
@@ -259,6 +313,16 @@ function animate(time) {
   const hasInput = inLen > 0;
   if (hasInput) { inX /= inLen; inZ /= inLen; }
 
+  const shiftHeld  = keys['ShiftLeft'] || keys['ShiftRight'];
+  const cHeld = keys['KeyC'];
+
+  const sprinting = shiftHeld && keys['KeyW'] && !cHeld;
+  const sneaking  = cHeld;
+
+  let maxSpeed = BASE_MAX_SPEED;
+  if (sprinting) maxSpeed *= SPRINT_MULTIPLIER;
+  else if (sneaking) maxSpeed *= SNEAK_MULTIPLIER;
+
   velocity.x += inX * ACCEL * dt;
   velocity.z += inZ * ACCEL * dt;
 
@@ -267,9 +331,9 @@ function animate(time) {
   velocity.z *= horizontalFriction;
 
   const hSpeed = Math.hypot(velocity.x, velocity.z);
-  if (hSpeed > MAX_SPEED) {
-    velocity.x *= MAX_SPEED / hSpeed;
-    velocity.z *= MAX_SPEED / hSpeed;
+  if (hSpeed > maxSpeed) {
+    velocity.x *= maxSpeed / hSpeed;
+    velocity.z *= maxSpeed / hSpeed;
   }
 
   velocity.y += GRAVITY * dt;
@@ -291,6 +355,19 @@ function animate(time) {
 
   let groundedThisFrame = false;
   for (let i = 0; i < steps; i++) {
+    if (sneaking && onGround) {
+      const moveLen = Math.hypot(stepVec.x, stepVec.z);
+      if (moveLen > 1e-6) {
+        const dx = stepVec.x / moveLen;
+        const dz = stepVec.z / moveLen;
+        if (isLedgeAhead(dx, dz)) {
+          stepVec.x = 0;
+          stepVec.z = 0;
+          velocity.x = 0;
+          velocity.z = 0;
+        }
+      }
+    }
     cube.position.add(stepVec);
     if (resolveCollisions()) groundedThisFrame = true;
   }
@@ -299,14 +376,21 @@ function animate(time) {
   const ROT_SPEED = 12;
   const rotT = 1 - Math.exp(-ROT_SPEED * dt);
   const targetCharYaw = cameraYaw + MODEL_FORWARD_OFFSET;
-  cube.rotation.y = lerpAngle(cube.rotation.y, targetCharYaw + 90, rotT);
+  cube.rotation.y = lerpAngle(cube.rotation.y, targetCharYaw + 89.5, rotT);
 
-  const shiftHeld = keys['ShiftLeft'] || keys['ShiftRight'];
-  if (!shiftHeld) {
+  const altHeld = keys['AltLeft'] || keys['AltRight'];
+  if (!altHeld) {
     const k = 1 - Math.exp(-LOOK_SNAPBACK_SPEED * dt);
     lookYawOffset += (0 - lookYawOffset) * k;
   }
-
+  
+  const targetSprint = sprinting ? SPRINT_STRETCH : 1;
+  const targetSneak  = sneaking  ? SNEAK_HEIGHT  : 1;
+  const sLerp = 1 - Math.exp(-SCALE_LERP_SPEED * dt);
+  currentSprintScale += (targetSprint - currentSprintScale) * sLerp;
+  currentSneakScale  += (targetSneak  - currentSneakScale)  * sLerp;
+  cube.scale.x = currentSprintScale;
+  cube.scale.y = currentSneakScale;
   const yaw = cameraYaw + lookYawOffset;
   camera.position.set(
     cube.position.x + Math.sin(yaw) * CAMERA_DIST,
@@ -316,10 +400,10 @@ function animate(time) {
   camera.lookAt(cube.position.x, cube.position.y + 1, cube.position.z);
 
   walkPhase = (walkPhase ?? 0) + hSpeed * dt * 2;
-  if (rightArm) rightArm.rotation.z = Math.sin(walkPhase) * 2;
-  if (leftArm)  leftArm.rotation.z  = -Math.cos(walkPhase) * 2;
-  if (rightEar) rightEar.rotation.x = Math.sin(walkPhase) * 0.6;
-  if (leftEar)  leftEar.rotation.x  = -Math.cos(walkPhase) * 0.6;
+  if (rightArm) rightArm.rotation.z = Math.sin(walkPhase) * 0.05;
+  if (leftArm)  leftArm.rotation.z  = -Math.cos(walkPhase) * 0.05;
+  if (rightEar) rightEar.rotation.x = Math.sin(walkPhase) * 0.2;
+  if (leftEar)  leftEar.rotation.x  = -Math.cos(walkPhase) * 0.2;
 
   renderer.render(scene, camera);
 
@@ -371,6 +455,18 @@ const previewCamera = new THREE.PerspectiveCamera(40, 280 / 400, 0.1, 100);
 const previewModel = cube.clone();
 const previewPivot = new THREE.Group();
 previewPivot.add(previewModel);
+
+const previewRightArm = previewModel.getObjectByName('Sphere009');
+const previewLeftArm  = previewModel.getObjectByName('Sphere010');
+
+previewEquipment = new Equipment({
+  mainhand: { parent: previewRightArm ?? previewModel, scale: 1 },
+  offhand:  { parent: previewLeftArm  ?? previewModel, scale: 1 },
+  helmet:    { parent: previewModel, scale: 1 },
+  chestplate:{ parent: previewModel, scale: 1 },
+});
+
+refreshEquipment();
 
 const box = new THREE.Box3().setFromObject(previewModel);
 const center = box.getCenter(new THREE.Vector3());

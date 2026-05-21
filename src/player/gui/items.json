@@ -4,6 +4,11 @@
     "slot": "weapon",
     "image": "/gui/inventory/items/broadsword.svg",
     "model": "/models/items/stoneSword.glb",
+    "attach": {
+      "offset": [0, -0.5, 0],
+      "rotation": [0, 0, -1.5708],
+      "scale": 1
+    },
     "stats": {
       "damage": 12,
       "speed": 3,
