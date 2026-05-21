@@ -33,10 +33,11 @@ for (let i = 0; i < TOTAL_SLOTS; i++) inventoryState[i] = null;
 for (let i = 0; i < EQUIP_SLOTS; i++) inventoryState[EQUIP_BASE + i] = null;
 
 // Starting items.
-inventoryState[0] = 'dagger';
-inventoryState[1] = 'broadsword';
-inventoryState[2] = 'bow';
-inventoryState[3] = 'arrow';
+inventoryState[0] = 'diamondSword';
+inventoryState[1] = 'diamondPickaxe';
+inventoryState[2] = 'hammer';
+inventoryState[3] = 'bow';
+inventoryState[4] = 'arrow';
 
 let selectedHotbarIndex = -1;
 let currentHP = MAX_HP;

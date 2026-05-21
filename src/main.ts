@@ -199,15 +199,15 @@ const velocity = new THREE.Vector3();
 const ACCEL = 450;
 const FRICTION = 10;
 const BASE_MAX_SPEED = 10;
-const SPRINT_MULTIPLIER = 5;
+const SPRINT_MULTIPLIER = 3;
 const SNEAK_MULTIPLIER = 0.9;
-const GRAVITY = -200;
+const GRAVITY = -100;
 const JUMP_SPEED = 30;
 const WALKABLE_SLOPE = Math.cos(THREE.MathUtils.degToRad(50));
 const MAX_STEP_DIST = SPHERE_RADIUS * 0.5;
 
 const SPRINT_STRETCH = 1.1;
-const SNEAK_HEIGHT   = 0.8;
+const SNEAK_HEIGHT = 0.8;
 const SCALE_LERP_SPEED = 8;
 
 const LEDGE_PROBE_DIST = SPHERE_RADIUS;
@@ -423,7 +423,7 @@ function resizeRendererToDisplaySize(renderer) {
 }
 
 createInventory();
-setHealth(5);
+setHealth(10);
 
 
 document.addEventListener('keydown', (e) => {
