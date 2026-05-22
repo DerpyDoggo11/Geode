@@ -8,9 +8,10 @@ import {
   selectHotbar, toggleOffhand, onEquipChange, refreshEquipment,
   // STEP 5: drop & pickup hooks.
   onItemDrop, tryAddItem, dropHeldOne, dropHeldStack,
+  consumeArrow,
 } from './player/gui/inventory';
 import { Equipment } from './player/gui/equipment';
-import { loadItems } from './player/gui/items';
+import { loadItems, getItem } from './player/gui/items';
 import { WorldDrops, preloadAllDropModels } from './player/gui/worldDrops';
 import { WeaponAnimator } from './player/weaponAnim';
 
@@ -142,7 +143,11 @@ let previewEquipment: Equipment | null = null;
 
 const weaponAnimator = new WeaponAnimator();
 
+let currentMainhand: string | null = null;
+
 onEquipChange((c) => {
+  currentMainhand = c.mainhand;
+
   equipment.equip('mainhand',  c.mainhand);
   equipment.equip('offhand',   c.offhand);
   equipment.equip('helmet',    c.helmet);
@@ -167,6 +172,97 @@ onItemDrop(({ itemId, count }) => {
   worldDrops.spawn(itemId, count, cube.position, forward);
 });
 
+
+// ─── Bow / projectile system ──────────────────────────────────────────────────
+
+const BOW_GRAVITY    = -22;    // m/s² applied to arrows (gentler arc than player gravity)
+const BOW_MIN_POWER  = 8;      // m/s at zero charge
+const BOW_MAX_POWER  = 28;     // m/s at full charge
+const BOW_AIM_SENS   = 0.003;  // radians per pixel of mouse Y movement
+const TRAJ_COUNT     = 28;     // number of preview dots
+const TRAJ_STEP      = 0.07;   // simulated seconds between each dot
+
+let bowCharging  = false;
+let bowAimPitch  = 0.12; // radians; positive = upward; reset each new charge
+
+// Trajectory preview: a Points object whose positions are re-written every frame
+const trajPositions = new Float32Array(TRAJ_COUNT * 3);
+const trajGeoAttr   = new THREE.BufferAttribute(trajPositions, 3);
+trajGeoAttr.usage   = THREE.DynamicDrawUsage;
+const trajGeo       = new THREE.BufferGeometry();
+trajGeo.setAttribute('position', trajGeoAttr);
+const trajDots      = new THREE.Points(trajGeo, new THREE.PointsMaterial({
+  color: 0xffeebb,
+  size: 0.12,
+  transparent: true,
+  opacity: 0.78,
+  sizeAttenuation: true,
+}));
+trajDots.visible = false;
+scene.add(trajDots);
+
+function updateTrajectoryDots(origin: THREE.Vector3, yaw: number, pitch: number, power: number) {
+  let px = origin.x, py = origin.y, pz = origin.z;
+  let vx = Math.cos(pitch) * -Math.sin(yaw) * power;
+  let vy = Math.sin(pitch) * power;
+  let vz = Math.cos(pitch) * -Math.cos(yaw) * power;
+  for (let i = 0; i < TRAJ_COUNT; i++) {
+    trajPositions[i * 3 + 0] = px;
+    trajPositions[i * 3 + 1] = py;
+    trajPositions[i * 3 + 2] = pz;
+    px += vx * TRAJ_STEP;
+    py += vy * TRAJ_STEP;
+    pz += vz * TRAJ_STEP;
+    vy += BOW_GRAVITY * TRAJ_STEP;
+  }
+  trajGeoAttr.needsUpdate = true;
+}
+
+// Arrow entities in flight
+interface ArrowEntity {
+  mesh: THREE.Mesh;
+  vel: THREE.Vector3;
+  age: number;
+  maxAge: number;
+  stuck: boolean;
+}
+const activeArrows: ArrowEntity[] = [];
+const arrowRaycaster = new THREE.Raycaster();
+const arrowUpVec = new THREE.Vector3(0, 1, 0);
+
+// Pre-built geometry/material shared by all arrow projectiles
+const arrowGeo = new THREE.CylinderGeometry(0.018, 0.022, 0.52, 5);
+const arrowMat = new THREE.MeshStandardMaterial({ color: 0xb08040 });
+
+function fireArrow(yaw: number, pitch: number, chargeNorm: number) {
+  if (!consumeArrow()) return; // no arrows in inventory → silent fail
+
+  const power = BOW_MIN_POWER + (BOW_MAX_POWER - BOW_MIN_POWER) * chargeNorm;
+  const dir = new THREE.Vector3(
+    Math.cos(pitch) * -Math.sin(yaw),
+    Math.sin(pitch),
+    Math.cos(pitch) * -Math.cos(yaw),
+  ).normalize();
+
+  const origin = cube.position.clone();
+  origin.y += 0.45;
+  origin.addScaledVector(dir, 0.6); // start slightly in front of the player
+
+  const mesh = new THREE.Mesh(arrowGeo, arrowMat);
+  mesh.position.copy(origin);
+  mesh.quaternion.setFromUnitVectors(arrowUpVec, dir);
+  scene.add(mesh);
+
+  activeArrows.push({
+    mesh,
+    vel: dir.clone().multiplyScalar(power),
+    age: 0,
+    maxAge: 7,
+    stuck: false,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const keys = {};
 document.addEventListener('keydown', (e) => { keys[e.code] = true; });
@@ -199,6 +295,10 @@ document.addEventListener('mousemove', (e) => {
   } else {
     cameraYaw -= dx;
   }
+  // While bow is charging, mouse Y adjusts the aim pitch (up/down angle)
+  if (bowCharging) {
+    bowAimPitch = Math.max(-0.25, Math.min(1.35, bowAimPitch - e.movementY * BOW_AIM_SENS));
+  }
 });
 
 document.addEventListener('mousedown', (e) => {
@@ -207,6 +307,11 @@ document.addEventListener('mousedown', (e) => {
     return;
   }
   if (!isPointerLocked) return;
+  // Bow: start charging — reset pitch to a slight upward default each draw
+  if (e.button === 0 && getItem(currentMainhand)?.animation?.type === 'bow') {
+    bowCharging = true;
+    bowAimPitch = 0.12;
+  }
   weaponAnimator.onMouseDown(e.button);
 });
 
@@ -216,6 +321,12 @@ document.addEventListener('mouseup', (e) => {
     return;
   }
   if (!isPointerLocked) return;
+  // Bow: release → fire an arrow if we were charging
+  if (e.button === 0 && bowCharging) {
+    bowCharging = false;
+    trajDots.visible = false;
+    fireArrow(cameraYaw, bowAimPitch, weaponAnimator.getChargeNormalized());
+  }
   weaponAnimator.onMouseUp(e.button);
 });
 
@@ -457,6 +568,57 @@ function animate(time) {
   if (leftArm)  leftArm.rotation.z  = -Math.cos(walkPhase) * 0.05;
   if (rightEar) rightEar.rotation.x = Math.sin(walkPhase) * 0.2;
   if (leftEar)  leftEar.rotation.x  = -Math.cos(walkPhase) * 0.2;
+
+  // ── Bow trajectory preview ────────────────────────────────────────────────
+  if (bowCharging) {
+    trajDots.visible = true;
+    const charge = weaponAnimator.getChargeNormalized();
+    const power  = BOW_MIN_POWER + (BOW_MAX_POWER - BOW_MIN_POWER) * charge;
+    const origin = cube.position.clone();
+    origin.y += 0.45;
+    origin.x += Math.cos(bowAimPitch) * -Math.sin(cameraYaw) * 0.6;
+    origin.z += Math.cos(bowAimPitch) * -Math.cos(cameraYaw) * 0.6;
+    updateTrajectoryDots(origin, cameraYaw, bowAimPitch, power);
+  } else {
+    trajDots.visible = false;
+  }
+
+  // ── Arrow projectile physics ──────────────────────────────────────────────
+  for (let i = activeArrows.length - 1; i >= 0; i--) {
+    const a = activeArrows[i];
+    a.age += dt;
+    if (a.age >= a.maxAge) {
+      scene.remove(a.mesh);
+      activeArrows.splice(i, 1);
+      continue;
+    }
+    if (a.stuck) continue;
+
+    a.vel.y += BOW_GRAVITY * dt;
+    const speed = a.vel.length();
+
+    // Collision: short raycast in direction of travel
+    if (speed > 0.05) {
+      const velDir = a.vel.clone().normalize();
+      arrowRaycaster.set(a.mesh.position, velDir);
+      arrowRaycaster.far = speed * dt + 0.18;
+      const hits = arrowRaycaster.intersectObject(collider, false);
+      if (hits.length > 0 && hits[0].distance <= arrowRaycaster.far) {
+        a.mesh.position.copy(hits[0].point);
+        a.vel.set(0, 0, 0);
+        a.stuck = true;
+        a.maxAge = a.age + 6; // linger 6 s after embedding
+        continue;
+      }
+    }
+
+    a.mesh.position.addScaledVector(a.vel, dt);
+
+    // Orient arrow cylinder (Y-axis) along velocity
+    if (speed > 0.05) {
+      a.mesh.quaternion.setFromUnitVectors(arrowUpVec, a.vel.clone().normalize());
+    }
+  }
 
   renderer.render(scene, camera);
 

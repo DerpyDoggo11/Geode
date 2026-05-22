@@ -2,6 +2,103 @@ import './inventory.css';
 import { getItemImage, getItem, getItemSlot, getMaxStack, type SlotType } from './items';
 import { armorEquipIndex } from './equipment';
 
+// ─── Tooltip ──────────────────────────────────────────────────────────────────
+
+function buildTooltipEl(): HTMLElement {
+  const tt = document.createElement('div');
+  tt.id = 'item-tooltip';
+  tt.style.cssText = [
+    'display:none',
+    'position:fixed',
+    'background:rgba(6,6,18,0.97)',
+    'border:1px solid rgba(110,110,255,0.45)',
+    'border-radius:5px',
+    'padding:8px 12px',
+    'min-width:160px',
+    'max-width:248px',
+    'pointer-events:none',
+    'z-index:9999',
+    'font-family:monospace',
+    'box-shadow:0 3px 16px rgba(0,0,0,0.8)',
+    'user-select:none',
+  ].join(';');
+
+  const name = document.createElement('div');
+  name.className = 'tt-name';
+  name.style.cssText = 'color:#ffd700;font-weight:bold;font-size:14px;';
+  tt.appendChild(name);
+
+  const desc = document.createElement('div');
+  desc.className = 'tt-desc';
+  desc.style.cssText = 'color:#bbb;font-size:12px;margin-top:4px;line-height:1.45;';
+  tt.appendChild(desc);
+
+  const divider = document.createElement('div');
+  divider.className = 'tt-divider';
+  divider.style.cssText = 'border-top:1px solid rgba(110,110,255,0.25);margin-top:6px;padding-top:5px;';
+  tt.appendChild(divider);
+
+  const stats = document.createElement('div');
+  stats.className = 'tt-stats';
+  stats.style.cssText = 'color:#aaddff;font-size:11px;line-height:1.6;';
+  divider.appendChild(stats);
+
+  const count = document.createElement('div');
+  count.className = 'tt-count';
+  count.style.cssText = 'color:#888;font-size:10px;margin-top:4px;';
+  tt.appendChild(count);
+
+  document.body.appendChild(tt);
+  return tt;
+}
+
+function showTooltip(slotIndex: number | null) {
+  const tt = document.getElementById('item-tooltip');
+  if (!tt) return;
+
+  // Hide when inventory is closed or no slot/stack under cursor
+  if (!isInventoryOpen() || slotIndex === null || !inventoryState[slotIndex]) {
+    tt.style.display = 'none';
+    return;
+  }
+
+  const stack = inventoryState[slotIndex]!;
+  const def = getItem(stack.id);
+  if (!def) { tt.style.display = 'none'; return; }
+
+  (tt.querySelector('.tt-name') as HTMLElement).textContent = def.name;
+
+  const descEl = tt.querySelector('.tt-desc') as HTMLElement;
+  const descText = def.tooltip?.description ?? '';
+  descEl.textContent = descText;
+  descEl.style.display = descText ? 'block' : 'none';
+
+  const statsEl = tt.querySelector('.tt-stats') as HTMLElement;
+  statsEl.innerHTML = '';
+  for (const [k, v] of Object.entries(def.stats)) {
+    if (typeof v === 'number') {
+      const row = document.createElement('div');
+      const label = k.charAt(0).toUpperCase() + k.slice(1);
+      row.textContent = `${label}: ${v}`;
+      statsEl.appendChild(row);
+    }
+  }
+  (tt.querySelector('.tt-divider') as HTMLElement).style.display =
+    statsEl.children.length > 0 ? 'block' : 'none';
+
+  const countEl = tt.querySelector('.tt-count') as HTMLElement;
+  countEl.textContent = stack.count > 1 ? `×${stack.count}` : '';
+
+  // Position: right of cursor, flip left if near edge
+  const W = 250;
+  let x = fakeCursorX + 18;
+  if (x + W > window.innerWidth) x = fakeCursorX - W - 8;
+  const y = Math.max(8, fakeCursorY - 10);
+  tt.style.left = `${x}px`;
+  tt.style.top  = `${y}px`;
+  tt.style.display = 'block';
+}
+
 const SLOT_BG = '/gui/inventory/inventorySlotBG.svg';
 const SLOT_SELECTED_BG = '/gui/inventory/inventorySlotSelectedBG.svg';
 const INVENTORY_BG = '/gui/inventory/inventoryBG.svg';
@@ -320,6 +417,9 @@ function updateFakeCursor(dx: number, dy: number) {
   updateCursorSprite();
 
   const slotIndex = getSlotUnderCursor();
+
+  showTooltip(slotIndex);
+
   if (slotIndex !== null && rightDragVisited && cursorStack && !rightDragVisited.has(slotIndex)) {
     if (depositOne(slotIndex)) {
       rightDragVisited.add(slotIndex);
@@ -412,6 +512,35 @@ export function dropHeldStack() {
   renderInventory();
   fireEquipChange();
   fireHotbarSelect();
+}
+
+/**
+ * Consume one arrow from the player's inventory.
+ * Checks the offhand slot first, then scans the rest of the inventory.
+ * Returns true if an arrow was found and consumed, false if none available.
+ */
+export function consumeArrow(): boolean {
+  // Prefer offhand
+  const offhand = inventoryState[OFFHAND_SLOT];
+  if (offhand && offhand.id === 'arrow') {
+    offhand.count -= 1;
+    if (offhand.count <= 0) inventoryState[OFFHAND_SLOT] = null;
+    renderInventory();
+    fireEquipChange();
+    return true;
+  }
+  // Scan remaining slots
+  for (let i = 0; i < TOTAL_SLOTS; i++) {
+    const s = inventoryState[i];
+    if (s && s.id === 'arrow') {
+      s.count -= 1;
+      if (s.count <= 0) inventoryState[i] = null;
+      renderInventory();
+      fireEquipChange();
+      return true;
+    }
+  }
+  return false;
 }
 
 // STEP 5: pickup. Merge into existing same-id stacks first, then fill empties.
@@ -572,6 +701,7 @@ export function getHealth() {
 
 export function createInventory() {
   buildHotbarBar();
+  buildTooltipEl();
 
   const overlay = document.createElement('div');
   overlay.id = 'inventory-overlay';
@@ -656,6 +786,7 @@ export function hideInventory() {
   document.getElementById('inventory-overlay')?.classList.add('hidden');
   document.getElementById('hotbar-wrapper')?.classList.remove('darkened');
   document.getElementById('fake-cursor')?.classList.remove('visible');
+  showTooltip(null);
   // If still carrying when the inventory closes: try to fit it back; world-drop
   // anything that doesn't fit so it isn't silently lost.
   if (cursorStack) {

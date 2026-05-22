@@ -41,6 +41,11 @@ export interface WeaponAnimDef {
   bowReleaseDuration?: number;
 }
 
+export interface ItemTooltip {
+  /** Short flavour/description line shown in the tooltip. */
+  description?: string;
+}
+
 export interface ItemDef {
   id: string;
   name: string;
@@ -52,6 +57,7 @@ export interface ItemDef {
   dropLightColor?: string;
   attach?: AttachTransform;
   animation?: WeaponAnimDef;
+  tooltip?: ItemTooltip;
   stats: Record<string, number | boolean>;
 }
 

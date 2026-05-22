@@ -79,6 +79,20 @@ export class WeaponAnimator {
     return this.state !== 'idle';
   }
 
+  isBowCharging(): boolean {
+    return this.state === 'bow_charge';
+  }
+
+  /** 0–1 representing how far the bow is drawn. */
+  getChargeNormalized(): number {
+    if (!this.def || this.state !== 'bow_charge') return 0;
+    return Math.min(this.chargeT / (this.def.chargeMax ?? 2), 1);
+  }
+
+  getCurrentType(): 'melee' | 'bow' | 'axe' | null {
+    return this.def?.type ?? null;
+  }
+
   update(dt: number): ArmPose {
     if (!this.def || this.state === 'idle') {
       return { active: false, rotX: 0, rotY: 0, rotZ: 0 };
