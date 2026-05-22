@@ -1,9 +1,7 @@
-
 :root {
   --health-color: #2ecc40; 
   --bar-skew: -20deg;
 }
-
 #hotbar-wrapper {
   position: fixed;
   bottom: clamp(8px, 2vh, 24px);
@@ -17,13 +15,11 @@
   transition: filter 0.15s ease, opacity 0.15s ease;
   width: clamp(320px, 50vw, 600px);
 }
-
 #hotbar-wrapper.darkened {
   filter: brightness(0.4);
   opacity: 0.6;
   pointer-events: none;
 }
-
 #healthbar {
   position: relative;
   width: 45%;
@@ -31,7 +27,6 @@
   margin-bottom: 2px;
   margin-left: 2%;
 }
-
 .healthbar-layer {
   position: absolute;
   inset: 0;
@@ -42,7 +37,6 @@
 .healthbar-empty {
   z-index: 1;
 }
-
 .healthbar-filled {
   z-index: 2;
   background-image: none !important;
@@ -52,17 +46,14 @@
     background-color 0.25s ease-out;
   clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
 }
-
 .healthbar-highlight {
   z-index: 3;
   opacity: 0.4;
   clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
 }
-
 .healthbar-ticks {
   z-index: 4;
 }
-
 .health-tick {
   width: 8%;
   height: 100%;
@@ -70,7 +61,6 @@
   background-repeat: no-repeat;
   background-position: center;
 }
-
 #hotbar {
   width: 100%;
   aspect-ratio: 540 / 86;
@@ -83,7 +73,6 @@
   padding: 0 5%;
   box-sizing: border-box;
 }
-
 #inventory-overlay {
   position: fixed;
   inset: 0;
@@ -95,11 +84,9 @@
   font-family: sans-serif;
   color: #fff;
 }
-
 #inventory-overlay.hidden {
   display: none;
 }
-
 .inventory-panel {
   width: clamp(500px, 70vw, 900px);
   aspect-ratio: 800 / 346;
@@ -107,7 +94,6 @@
   background-repeat: no-repeat;
   position: relative;
 }
-
 .equipment {
   position: absolute;
   top: 13%;
@@ -116,7 +102,6 @@
   flex-direction: row;
   gap: 1%;
 }
-
 .character-panel {
   position: absolute;
   bottom: 5%;
@@ -128,7 +113,6 @@
   gap: 10px;
   pointer-events: none;
 }
-
 .model-preview {
   width: 70%;
   aspect-ratio: 120 / 160;
@@ -140,20 +124,17 @@
   flex-shrink: 0;
   overflow: hidden;
 }
-
 .model-preview canvas {
   width: 100%;
   height: 100%;
   display: block;
 }
-
 .stats {
   font-size: clamp(10px, 1vw, 14px);
   line-height: 1.4;
   text-align: center;
   flex: 1;
 }
-
 .inventory-grid {
   position: absolute;
   top: 6%;
@@ -163,7 +144,6 @@
   gap: 1%;
   width: 35%;
 }
-
 .inventory-hotbar-row {
   position: absolute;
   bottom: 15%;
@@ -172,7 +152,6 @@
   gap: 1%;
   width: 35%;
 }
-
 .inventory-slot {
   aspect-ratio: 1;
   display: flex;
@@ -183,21 +162,17 @@
   align-items: center;
   pointer-events: auto;
 }
-
 .inventory-grid .inventory-slot,
 .inventory-hotbar-row .inventory-slot {
   width: 100%;
 }
-
 #hotbar .inventory-slot {
   height: 70%;
   aspect-ratio: 1;
 }
-
 .equipment .inventory-slot {
   width: clamp(36px, 4vw, 56px);
 }
-
 .slot-item {
   width: 80%;
   height: 80%;
@@ -205,11 +180,9 @@
   pointer-events: auto;
   cursor: grab;
 }
-
 .slot-item:active {
   cursor: grabbing;
 }
-
 #fake-cursor {
   position: fixed;
   width: 24px;
@@ -220,17 +193,14 @@
   display: none;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
 }
-
 #fake-cursor.visible {
   display: block;
 }
-
 #fake-cursor svg {
   width: 100%;
   height: 100%;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
 }
-
 .slot-item.dragging-ghost {
   position: fixed;
   pointer-events: none;
@@ -239,4 +209,87 @@
   height: 48px;
   transform: translate(-50%, -50%);
   opacity: 0.85;
+}
+
+/* === STEP 3: stack rendering === */
+
+/* Wrapper that replaces the bare <img> inside a slot.
+   pointer-events: none so the slot div (which holds data-slot-index) still
+   receives elementFromPoint hits. */
+.slot-stack {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Main sprite: absolutely centered. Overrides the original .slot-item rules
+   only when inside .slot-stack, so the dragging-ghost (which is NOT inside
+   a slot-stack) keeps its original styling and behavior. */
+.slot-stack .slot-item {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 75%;
+  height: 75%;
+  object-fit: contain;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+}
+
+/* Ghost copies behind the main sprite. Translate offsets are % of the
+   ghost's own size, so they stay tight at any slot scale. */
+.slot-item-ghost {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 75%;
+  height: 75%;
+  object-fit: contain;
+  pointer-events: none;
+  transform: translate(-50%, -50%)
+             translate(var(--ghost-dx, 0%), var(--ghost-dy, 0%))
+             rotate(var(--ghost-rot, 0deg));
+  opacity: 0.9;
+  z-index: 0;
+}
+
+.stack-count {
+  position: absolute;
+  right: 6%;
+  bottom: 2%;
+  font-family: inherit;
+  font-size: clamp(12px, 1.2vw, 18px);
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow:
+     1px  1px 0 #000,
+    -1px  1px 0 #000,
+     1px -1px 0 #000,
+    -1px -1px 0 #000;
+  pointer-events: none;
+  z-index: 3;
+  line-height: 1;
+}
+
+/* STEP 4: the stack carried by the cursor while the player has picked one up.
+   Fixed-position element pinned to fakeCursorX/Y; sized to match a small slot. */
+#cursor-stack {
+  position: fixed;
+  width: 48px;
+  height: 48px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  z-index: 9999;
+}
+/* Force every descendant non-interactive too. Without this, the .slot-item img
+   inside inherits pointer-events: auto from the base .slot-item rule and
+   intercepts the second click, making it impossible to drop the stack. */
+#cursor-stack,
+#cursor-stack * {
+  pointer-events: none !important;
+}
+#cursor-stack .slot-stack {
+  width: 100%;
+  height: 100%;
 }

@@ -14,6 +14,9 @@ export interface ItemDef {
   slot: SlotType;
   image: string;
   model: string;
+  // STEP 1: new optional fields. Old code paths that don't read them keep working.
+  maxStack?: number;
+  dropLightColor?: string;
   attach?: AttachTransform;
   stats: Record<string, number | boolean>;
 }
@@ -38,6 +41,17 @@ export function getItemImage(id: string | null): string | null {
 
 export function getItemSlot(id: string | null): SlotType | null {
   return getItem(id)?.slot ?? null;
+}
+
+// STEP 1: new accessors. Unused yet — just here so later steps can call them.
+export function getMaxStack(id: string | null): number {
+  const def = getItem(id);
+  if (!def) return 1;
+  return def.maxStack ?? 1;
+}
+
+export function getDropLightColor(id: string | null): string {
+  return getItem(id)?.dropLightColor ?? '#ffffff';
 }
 
 export function allItems(): ItemDef[] {

@@ -5,10 +5,13 @@ import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast, StaticGeometr
 import {
   createInventory, toggleInventory, setCharacterPreview, setHealth, isInventoryOpen,
   handleInventoryMouseMove, handleInventoryMouseUp, handleInventoryMouseDown,
-  handleInventoryRightClick, selectHotbar, toggleOffhand, onEquipChange, refreshEquipment,
+  selectHotbar, toggleOffhand, onEquipChange, refreshEquipment,
+  // STEP 5: drop & pickup hooks.
+  onItemDrop, tryAddItem, dropHeldOne, dropHeldStack,
 } from './player/gui/inventory';
 import { Equipment } from './player/gui/equipment';
 import { loadItems } from './player/gui/items';
+import { WorldDrops, preloadAllDropModels } from './player/gui/worldDrops';
 
 
 function applyToonShader(model, gradientSteps = 3) {
@@ -90,6 +93,10 @@ let cube;
 
 await loadItems('/data/items.json');
 
+// Warm up the drop-model cache in the background. Without this, the first
+// Q-drop or world-drop fetches+parses a GLB on the main thread and hitches.
+void preloadAllDropModels();
+
 const gltf = await loader.loadAsync('/models/commander.glb');
 cube = gltf.scene;
 cube.position.set(0, 10, 0);
@@ -110,8 +117,6 @@ addToonOutline(cube, 0.05);
 
 const MODEL_FORWARD_OFFSET = 0;
 
-// Swapped: previously Sphere009 was labelled leftArm and the sword rendered visually on
-// the player's left. Swap them so the mainhand (right arm) is on the correct side.
 let leftEar = cube.getObjectByName('Sphere001');
 let rightEar = cube.getObjectByName('Sphere002');
 let rightArm = cube.getObjectByName('Sphere009');
@@ -119,7 +124,6 @@ let leftArm  = cube.getObjectByName('Sphere010');
 
 scene.add(cube);
 
-// Wire main-world equipment.
 const equipment = new Equipment({
   mainhand: { parent: rightArm ?? cube, scale: 1 },
   offhand:  { parent: leftArm  ?? cube, scale: 1 },
@@ -143,6 +147,15 @@ onEquipChange((c) => {
   }
 });
 
+// STEP 5: world drops. The inventory fires a drop request; we spawn an entity
+// in front of the player.
+const worldDrops = new WorldDrops(scene);
+
+onItemDrop(({ itemId, count }) => {
+  const forward = new THREE.Vector3(-Math.sin(cameraYaw), 0, -Math.cos(cameraYaw));
+  worldDrops.spawn(itemId, count, cube.position, forward);
+});
+
 
 const keys = {};
 document.addEventListener('keydown', (e) => { keys[e.code] = true; });
@@ -163,13 +176,12 @@ document.addEventListener('pointerlockchange', () => {
 });
 
 document.addEventListener('mousemove', (e) => {
-  if (!isPointerLocked) return;
   if (isInventoryOpen()) {
     handleInventoryMouseMove(e.movementX, e.movementY);
     return;
   }
+  if (!isPointerLocked) return;
   const dx = e.movementX * MOUSE_SENSITIVITY;
-  // Look-offset moved to Alt so Shift can be used for sneaking.
   const altHeld = keys['AltLeft'] || keys['AltRight'];
   if (altHeld) {
     lookYawOffset += dx;
@@ -179,18 +191,19 @@ document.addEventListener('mousemove', (e) => {
 });
 
 document.addEventListener('mousedown', (e) => {
-  if (!isPointerLocked) return;
   if (isInventoryOpen()) {
-    if (e.button === 0) handleInventoryMouseDown();
-    else if (e.button === 2) handleInventoryRightClick();
+    if (e.button === 0 || e.button === 2) handleInventoryMouseDown(e.button);
+    return;
   }
+  if (!isPointerLocked) return;
 });
 
 document.addEventListener('mouseup', (e) => {
-  if (!isPointerLocked) return;
-  if (isInventoryOpen() && e.button === 0) {
-    handleInventoryMouseUp();
+  if (isInventoryOpen()) {
+    if (e.button === 0 || e.button === 2) handleInventoryMouseUp(e.button);
+    return;
   }
+  if (!isPointerLocked) return;
 });
 
 document.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -253,9 +266,6 @@ const scanRay = new THREE.Raycaster();
 const scanOrigin = new THREE.Vector3();
 const scanDir = new THREE.Vector3(0, -1, 0);
 
-// Raycast straight down from a point LEDGE_PROBE_DIST ahead of the player in
-// (dx, dz) — assumed unit-length. Returns true if there's a drop ahead too
-// steep to walk down while sneaking.
 function isLedgeAhead(dx: number, dz: number): boolean {
   const feetY = cube.position.y - SPHERE_RADIUS;
   scanOrigin.set(
@@ -373,6 +383,21 @@ function animate(time) {
   }
   onGround = groundedThisFrame;
 
+  // STEP 5: animate drops & check pickup. The callback returns true to despawn.
+  // tryAddItem returns leftover; if leftover is the full count, nothing fit
+  // and the drop stays. Otherwise some/all was absorbed — leave the drop only
+  // if some leftover remains, by spawning a replacement smaller pile.
+  worldDrops.update(dt, cube.position, (itemId, count) => {
+    const leftover = tryAddItem(itemId, count);
+    if (leftover === count) return false; // no room — leave drop as is
+    if (leftover > 0) {
+      // Partial pickup: respawn the remainder so the player can come back for it.
+      const forward = new THREE.Vector3(-Math.sin(cameraYaw), 0, -Math.cos(cameraYaw));
+      worldDrops.spawn(itemId, leftover, cube.position, forward);
+    }
+    return true;
+  });
+
   const ROT_SPEED = 12;
   const rotT = 1 - Math.exp(-ROT_SPEED * dt);
   const targetCharYaw = cameraYaw + MODEL_FORWARD_OFFSET;
@@ -441,6 +466,14 @@ document.addEventListener('keydown', (e) => {
 
   if (e.code === 'KeyF') {
     toggleOffhand();
+  }
+
+  // STEP 5: Q = drop one from the held hotbar slot. Shift+Q = drop whole stack.
+  // Gated on inventory closed so Q doesn't conflict with future in-inventory keys,
+  // and Shift+Q doesn't accidentally fire while sprint-walking through the menu.
+  if (e.code === 'KeyQ' && !isInventoryOpen()) {
+    if (e.shiftKey) dropHeldStack();
+    else dropHeldOne();
   }
 });
 

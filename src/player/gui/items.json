@@ -4,191 +4,167 @@
     "slot": "weapon",
     "image": "/gui/inventory/items/stoneSword.svg",
     "model": "/models/items/glb/stoneSword.glb",
+    "maxStack": 1,
+    "dropLightColor": "#9aa0a6",
     "attach": {
       "offset": [0.5, -0.5, -1.5],
       "rotation": [0, -1.2, -1.5708],
       "scale": 1
     },
-    "stats": {
-      "damage": 12,
-      "speed": 3,
-      "range": 1.5
-    }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
   },
   "ironSword": {
     "name": "Iron Sword",
     "slot": "weapon",
     "image": "/gui/inventory/items/ironSword.svg",
     "model": "/models/items/glb/ironSword.glb",
+    "maxStack": 1,
+    "dropLightColor": "#d6d6d6",
     "attach": {
       "offset": [0.5, -0.5, -1.5],
       "rotation": [0, -1.2, -1.5708],
       "scale": 1
     },
-    "stats": {
-      "damage": 12,
-      "speed": 3,
-      "range": 1.5
-    }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
   },
   "goldSword": {
     "name": "Gold Sword",
     "slot": "weapon",
     "image": "/gui/inventory/items/goldSword.svg",
     "model": "/models/items/glb/goldSword.glb",
+    "maxStack": 1,
+    "dropLightColor": "#ffd54a",
     "attach": {
       "offset": [0.5, -0.5, -1.5],
       "rotation": [0, -1.2, -1.5708],
       "scale": 1
     },
-    "stats": {
-      "damage": 12,
-      "speed": 3,
-      "range": 1.5
-    }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
   },
   "diamondSword": {
     "name": "Diamond Sword",
     "slot": "weapon",
     "image": "/gui/inventory/items/diamondSword.svg",
     "model": "/models/items/glb/diamondSword.glb",
+    "maxStack": 1,
+    "dropLightColor": "#5ddcff",
     "attach": {
       "offset": [0.5, -0.5, -1.5],
       "rotation": [0, -1.2, -1.5708],
       "scale": 1
     },
-    "stats": {
-      "damage": 12,
-      "speed": 3,
-      "range": 1.5
-    }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
   },
   "stonePickaxe": {
     "name": "Stone Pickaxe",
     "slot": "weapon",
     "image": "/gui/inventory/items/stonePickaxe.svg",
     "model": "/models/items/glb/stonePickaxe.glb",
+    "maxStack": 1,
+    "dropLightColor": "#9aa0a6",
     "attach": {
       "offset": [0.5, -0.5, -1.5],
       "rotation": [0, -1.2, -1.5708],
       "scale": 1
     },
-    "stats": {
-      "damage": 12,
-      "speed": 3,
-      "range": 1.5
-    }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
   },
   "ironPickaxe": {
     "name": "Iron Pickaxe",
     "slot": "weapon",
     "image": "/gui/inventory/items/ironPickaxe.svg",
     "model": "/models/items/glb/ironPickaxe.glb",
+    "maxStack": 1,
+    "dropLightColor": "#d6d6d6",
     "attach": {
       "offset": [0.5, -0.5, -1.5],
       "rotation": [0, -1.2, -1.5708],
       "scale": 1
     },
-    "stats": {
-      "damage": 12,
-      "speed": 3,
-      "range": 1.5
-    }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
   },
   "goldPickaxe": {
     "name": "Gold Pickaxe",
     "slot": "weapon",
     "image": "/gui/inventory/items/goldPickaxe.svg",
     "model": "/models/items/glb/goldPickaxe.glb",
+    "maxStack": 1,
+    "dropLightColor": "#ffd54a",
     "attach": {
       "offset": [0.5, -0.5, -1.5],
       "rotation": [0, -1.2, -1.5708],
       "scale": 1
     },
-    "stats": {
-      "damage": 12,
-      "speed": 3,
-      "range": 1.5
-    }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
   },
   "diamondPickaxe": {
     "name": "Diamond Pickaxe",
     "slot": "weapon",
     "image": "/gui/inventory/items/diamondPickaxe.svg",
     "model": "/models/items/glb/diamondPickaxe.glb",
+    "maxStack": 1,
+    "dropLightColor": "#5ddcff",
     "attach": {
       "offset": [0.5, -0.5, -1.5],
       "rotation": [0, -1.2, -1.5708],
       "scale": 1
     },
-    "stats": {
-      "damage": 12,
-      "speed": 3,
-      "range": 1.5
-    }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
   },
   "bow": {
     "name": "Bow",
     "slot": "weapon",
     "image": "/gui/inventory/items/bow.svg",
     "model": "/models/items/glb/bow.glb",
+    "maxStack": 1,
+    "dropLightColor": "#c8a07a",
     "attach": {
       "offset": [0.5, -0.5, -1.5],
       "rotation": [0, -1.2, -1.5708],
       "scale": 1
     },
-    "stats": {
-      "damage": 12,
-      "speed": 3,
-      "range": 1.5
-    }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
   },
   "punchBow": {
     "name": "Punch Bow",
     "slot": "weapon",
     "image": "/gui/inventory/items/punchBow.svg",
     "model": "/models/items/glb/punchBow.glb",
+    "maxStack": 1,
+    "dropLightColor": "#c8a07a",
     "attach": {
       "offset": [0.5, -0.5, -1.5],
       "rotation": [0, -1.2, -1.5708],
       "scale": 1
     },
-    "stats": {
-      "damage": 12,
-      "speed": 3,
-      "range": 1.5
-    }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
   },
   "arrow": {
     "name": "Arrow",
     "slot": "offhand",
     "image": "/gui/inventory/items/arrow.svg",
     "model": "/models/items/glb/arrow.glb",
+    "maxStack": 16,
+    "dropLightColor": "#ffffff",
     "attach": {
       "offset": [0.5, -0.5, -1.5],
       "rotation": [0, -1.2, -1.5708],
       "scale": 1
     },
-    "stats": {
-      "damage": 12,
-      "speed": 3,
-      "range": 1.5
-    }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
   },
   "hammer": {
     "name": "Hammer",
     "slot": "weapon",
     "image": "/gui/inventory/items/hammer.svg",
     "model": "/models/items/glb/hammer.glb",
+    "maxStack": 1,
+    "dropLightColor": "#b08040",
     "attach": {
       "offset": [0.5, -0.5, -1.5],
       "rotation": [0, -1.2, -1.5708],
       "scale": 1
     },
-    "stats": {
-      "damage": 12,
-      "speed": 3,
-      "range": 1.5
-    }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
   }
 }

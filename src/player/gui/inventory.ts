@@ -1,5 +1,5 @@
 import './inventory.css';
-import { getItemImage, getItem, getItemSlot, type SlotType } from './items';
+import { getItemImage, getItem, getItemSlot, getMaxStack, type SlotType } from './items';
 import { armorEquipIndex } from './equipment';
 
 const SLOT_BG = '/gui/inventory/inventorySlotBG.svg';
@@ -26,54 +26,68 @@ const EQUIP_SLOTS = 3;
 const MAX_HP = 10;
 const TICK_COUNT = 10;
 
-// Inventory + equipment: items are stored as IDs (or null).
-// Indices 0..4 = hotbar, 5..19 = grid, 100=helmet, 101=chestplate, 102=offhand.
-const inventoryState: Record<number, string | null> = {};
+export interface Stack { id: string; count: number; }
+
+function ghostCopiesFor(count: number): number {
+  if (count <= 1) return 0;
+  if (count <= 3) return 1;
+  if (count <= 7) return 2;
+  return 3;
+}
+
+const inventoryState: Record<number, Stack | null> = {};
 for (let i = 0; i < TOTAL_SLOTS; i++) inventoryState[i] = null;
 for (let i = 0; i < EQUIP_SLOTS; i++) inventoryState[EQUIP_BASE + i] = null;
 
-// Starting items.
-inventoryState[0] = 'diamondSword';
-inventoryState[1] = 'diamondPickaxe';
-inventoryState[2] = 'hammer';
-inventoryState[3] = 'bow';
-inventoryState[4] = 'arrow';
+inventoryState[0] = { id: 'diamondSword', count: 1 };
+inventoryState[1] = { id: 'diamondPickaxe', count: 1 };
+inventoryState[2] = { id: 'hammer', count: 1 };
+inventoryState[3] = { id: 'bow', count: 1 };
+inventoryState[4] = { id: 'arrow', count: 16 };
 
 let selectedHotbarIndex = -1;
 let currentHP = MAX_HP;
-let draggedFromIndex: number | null = null;
 let fakeCursorX = window.innerWidth / 2;
 let fakeCursorY = window.innerHeight / 2;
-let draggedGhost: HTMLImageElement | null = null;
 
-// Listeners. main.ts subscribes to keep the 3D world in sync with inventory state.
+let cursorStack: Stack | null = null;
+let rightDragVisited: Set<number> | null = null;
+
 type EquipChange = { mainhand: string | null; offhand: string | null; helmet: string | null; chestplate: string | null };
 const equipListeners: ((c: EquipChange) => void)[] = [];
 const hotbarListeners: ((index: number, itemId: string | null) => void)[] = [];
 
+// STEP 5: drop listeners. main.ts subscribes to spawn world drops.
+export type DropRequest = { itemId: string; count: number };
+const dropListeners: ((d: DropRequest) => void)[] = [];
+
 export function onEquipChange(fn: (c: EquipChange) => void) { equipListeners.push(fn); }
 export function onHotbarSelect(fn: (index: number, itemId: string | null) => void) { hotbarListeners.push(fn); }
+export function onItemDrop(fn: (d: DropRequest) => void) { dropListeners.push(fn); }
 
-// Re-broadcast current equipment state. Use after a late subscriber registers
-// (e.g. the preview equipment instance, which is built after createInventory()).
-export function refreshEquipment() {
-  fireEquipChange();
-}
+export function refreshEquipment() { fireEquipChange(); }
+
+function stackId(s: Stack | null): string | null { return s ? s.id : null; }
 
 function fireEquipChange() {
-  const mainhandId = selectedHotbarIndex === -1 ? null : inventoryState[selectedHotbarIndex];
+  const mainhandId = selectedHotbarIndex === -1 ? null : stackId(inventoryState[selectedHotbarIndex]);
   const change: EquipChange = {
     mainhand: mainhandId,
-    offhand: inventoryState[OFFHAND_SLOT],
-    helmet: inventoryState[HELMET_SLOT],
-    chestplate: inventoryState[CHESTPLATE_SLOT],
+    offhand: stackId(inventoryState[OFFHAND_SLOT]),
+    helmet: stackId(inventoryState[HELMET_SLOT]),
+    chestplate: stackId(inventoryState[CHESTPLATE_SLOT]),
   };
   for (const fn of equipListeners) fn(change);
 }
 
 function fireHotbarSelect() {
-  const id = selectedHotbarIndex === -1 ? null : inventoryState[selectedHotbarIndex];
+  const id = selectedHotbarIndex === -1 ? null : stackId(inventoryState[selectedHotbarIndex]);
   for (const fn of hotbarListeners) fn(selectedHotbarIndex, id);
+}
+
+function fireDrop(itemId: string, count: number) {
+  if (count <= 0) return;
+  for (const fn of dropListeners) fn({ itemId, count });
 }
 
 function makeSlot(index: number) {
@@ -84,14 +98,50 @@ function makeSlot(index: number) {
   return slot;
 }
 
-function makeItemImg(itemId: string, index: number) {
-  const img = document.createElement('img');
-  const src = getItemImage(itemId);
-  if (src) img.src = src;
-  img.className = 'slot-item';
-  img.dataset.itemIndex = String(index);
-  img.dataset.itemId = itemId;
-  return img;
+function hashStr(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = (h * 16777619) >>> 0;
+  }
+  return h;
+}
+
+function makeStackVisual(stack: Stack, index: number): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'slot-stack';
+  wrap.dataset.itemIndex = String(index);
+  wrap.dataset.itemId = stack.id;
+
+  const src = getItemImage(stack.id);
+  const copies = ghostCopiesFor(stack.count);
+
+  for (let i = 0; i < copies; i++) {
+    const ghost = document.createElement('img');
+    if (src) ghost.src = src;
+    ghost.className = 'slot-item slot-item-ghost';
+    const seed = hashStr(stack.id + ':' + i);
+    const dx = ((seed % 100) / 100 - 0.5) * 30;
+    const dy = (((seed >> 8) % 100) / 100 - 0.5) * 30;
+    const rot = (((seed >> 16) % 100) / 100 - 0.5) * 30;
+    ghost.style.setProperty('--ghost-dx', `${dx}%`);
+    ghost.style.setProperty('--ghost-dy', `${dy}%`);
+    ghost.style.setProperty('--ghost-rot', `${rot}deg`);
+    wrap.appendChild(ghost);
+  }
+
+  const main = document.createElement('img');
+  if (src) main.src = src;
+  main.className = 'slot-item';
+  wrap.appendChild(main);
+
+  if (stack.count > 1) {
+    const badge = document.createElement('div');
+    badge.className = 'stack-count';
+    badge.textContent = String(stack.count);
+    wrap.appendChild(badge);
+  }
+  return wrap;
 }
 
 function getSlotUnderCursor(): number | null {
@@ -102,8 +152,6 @@ function getSlotUnderCursor(): number | null {
   return Number(slot.dataset.slotIndex);
 }
 
-// True if `itemId` is allowed to live in `slotIndex`. Regular hotbar/grid slots
-// accept anything; equipment slots only accept items whose slot type matches.
 function canPlaceInSlot(itemId: string | null, slotIndex: number): boolean {
   if (itemId === null) return true;
   if (slotIndex < TOTAL_SLOTS) return true;
@@ -113,60 +161,179 @@ function canPlaceInSlot(itemId: string | null, slotIndex: number): boolean {
   return required === slotIndex;
 }
 
-function swapSlots(a: number, b: number): boolean {
-  const aItem = inventoryState[a];
-  const bItem = inventoryState[b];
-  if (!canPlaceInSlot(aItem, b) || !canPlaceInSlot(bItem, a)) return false;
-  inventoryState[a] = bItem;
-  inventoryState[b] = aItem;
+// ---------- cursor-stack operations ----------
+
+function pickUpAll(slotIndex: number) {
+  const cur = inventoryState[slotIndex];
+  if (!cur) return;
+  cursorStack = { id: cur.id, count: cur.count };
+  inventoryState[slotIndex] = null;
+}
+
+function splitInto(srcIndex: number) {
+  const cur = inventoryState[srcIndex];
+  if (!cur) return;
+  const take = Math.ceil(cur.count / 2);
+  cursorStack = { id: cur.id, count: take };
+  const left = cur.count - take;
+  inventoryState[srcIndex] = left > 0 ? { id: cur.id, count: left } : null;
+}
+
+function depositAll(slotIndex: number) {
+  if (!cursorStack) return;
+  if (!canPlaceInSlot(cursorStack.id, slotIndex)) return;
+  const slot = inventoryState[slotIndex];
+  if (!slot) {
+    inventoryState[slotIndex] = cursorStack;
+    cursorStack = null;
+    return;
+  }
+  if (slot.id === cursorStack.id) {
+    const max = getMaxStack(slot.id);
+    const room = max - slot.count;
+    if (room <= 0) return;
+    const moved = Math.min(room, cursorStack.count);
+    slot.count += moved;
+    cursorStack.count -= moved;
+    if (cursorStack.count <= 0) cursorStack = null;
+    return;
+  }
+  inventoryState[slotIndex] = cursorStack;
+  cursorStack = slot;
+}
+
+function depositOne(slotIndex: number): boolean {
+  if (!cursorStack) return false;
+  if (!canPlaceInSlot(cursorStack.id, slotIndex)) return false;
+  const slot = inventoryState[slotIndex];
+  if (!slot) {
+    inventoryState[slotIndex] = { id: cursorStack.id, count: 1 };
+  } else {
+    if (slot.id !== cursorStack.id) return false;
+    const max = getMaxStack(slot.id);
+    if (slot.count >= max) return false;
+    slot.count += 1;
+  }
+  cursorStack.count -= 1;
+  if (cursorStack.count <= 0) cursorStack = null;
   return true;
 }
 
-function startDrag(index: number, itemId: string) {
-  draggedFromIndex = index;
-  draggedGhost = document.createElement('img');
-  const src = getItemImage(itemId);
-  if (src) draggedGhost.src = src;
-  draggedGhost.className = 'slot-item dragging-ghost';
-  draggedGhost.style.left = `${fakeCursorX}px`;
-  draggedGhost.style.top = `${fakeCursorY}px`;
-  document.body.appendChild(draggedGhost);
-
-  document
-    .querySelectorAll<HTMLDivElement>(`[data-slot-index="${index}"]`)
-    .forEach(s => (s.style.backgroundImage = `url('${SLOT_SELECTED_BG}')`));
-
-  updateCursorSprite();
+// STEP 5: distinguish "outside the inventory panel entirely" from "inside the
+// panel but in a gap between slots". Throwing items into the world only fires
+// for the former — missing a slot by a few pixels shouldn't dump your stack.
+function cursorIsOutsidePanel(): boolean {
+  const panel = document.querySelector<HTMLElement>('.inventory-panel');
+  if (!panel) return true;
+  const r = panel.getBoundingClientRect();
+  return (
+    fakeCursorX < r.left ||
+    fakeCursorX > r.right ||
+    fakeCursorY < r.top ||
+    fakeCursorY > r.bottom
+  );
 }
 
-function endDrag() {
-  if (draggedFromIndex === null) {
-    cleanupDrag();
+// ---------- Mouse handlers ----------
+
+export function handleInventoryMouseDown(button: number = 0) {
+  const slotIndex = getSlotUnderCursor();
+
+  if (button === 0) {
+    if (slotIndex === null) {
+      // STEP 5: clicking outside the panel while holding a stack drops it.
+      // Inside the panel but between slots → no-op.
+      if (cursorStack && cursorIsOutsidePanel()) {
+        fireDrop(cursorStack.id, cursorStack.count);
+        cursorStack = null;
+        renderInventory();
+      }
+      return;
+    }
+    if (cursorStack) {
+      depositAll(slotIndex);
+    } else {
+      pickUpAll(slotIndex);
+    }
+    renderInventory();
+    fireEquipChange();
     return;
   }
-  const to = getSlotUnderCursor();
-  if (to !== null && to !== draggedFromIndex) {
-    swapSlots(draggedFromIndex, to);
+
+  if (button === 2) {
+    rightDragVisited = new Set();
+    if (slotIndex === null) {
+      // STEP 5: right-click outside drops one item from the cursor.
+      if (cursorStack && cursorIsOutsidePanel()) {
+        fireDrop(cursorStack.id, 1);
+        cursorStack.count -= 1;
+        if (cursorStack.count <= 0) cursorStack = null;
+        renderInventory();
+      }
+      return;
+    }
+
+    // Armor auto-equip shortcut.
+    if (!cursorStack) {
+      const stack = inventoryState[slotIndex];
+      if (stack && stack.count === 1) {
+        const slotType = getItemSlot(stack.id);
+        if (slotType) {
+          const targetIndex = armorEquipIndex(slotType);
+          if (targetIndex !== null && targetIndex !== slotIndex) {
+            const target = inventoryState[targetIndex];
+            inventoryState[targetIndex] = stack;
+            inventoryState[slotIndex] = target;
+            rightDragVisited.add(slotIndex);
+            renderInventory();
+            fireEquipChange();
+            return;
+          }
+        }
+      }
+    }
+
+    if (cursorStack) {
+      if (depositOne(slotIndex)) rightDragVisited.add(slotIndex);
+    } else {
+      splitInto(slotIndex);
+      rightDragVisited.add(slotIndex);
+    }
+    renderInventory();
+    fireEquipChange();
   }
-  cleanupDrag();
-  renderInventory();
-  fireEquipChange();
 }
 
-function cleanupDrag() {
-  draggedFromIndex = null;
-  if (draggedGhost) {
-    draggedGhost.remove();
-    draggedGhost = null;
+export function handleInventoryMouseUp(button: number = 0) {
+  if (button === 2) rightDragVisited = null;
+}
+
+function updateFakeCursor(dx: number, dy: number) {
+  fakeCursorX = Math.max(0, Math.min(window.innerWidth, fakeCursorX + dx));
+  fakeCursorY = Math.max(0, Math.min(window.innerHeight, fakeCursorY + dy));
+  const cursor = document.getElementById('fake-cursor');
+  if (cursor) {
+    cursor.style.left = `${fakeCursorX}px`;
+    cursor.style.top = `${fakeCursorY}px`;
   }
+  updateCursorAttachment();
   updateCursorSprite();
+
+  const slotIndex = getSlotUnderCursor();
+  if (slotIndex !== null && rightDragVisited && cursorStack && !rightDragVisited.has(slotIndex)) {
+    if (depositOne(slotIndex)) {
+      rightDragVisited.add(slotIndex);
+      renderInventory();
+      fireEquipChange();
+    }
+  }
 }
 
 function updateCursorSprite() {
   const cursor = document.getElementById('fake-cursor') as HTMLImageElement | null;
   if (!cursor) return;
 
-  if (draggedFromIndex !== null) {
+  if (cursorStack) {
     cursor.src = CURSOR_GRAB;
     return;
   }
@@ -179,53 +346,15 @@ function updateCursorSprite() {
   }
 }
 
-function updateFakeCursor(dx: number, dy: number) {
-  fakeCursorX = Math.max(0, Math.min(window.innerWidth, fakeCursorX + dx));
-  fakeCursorY = Math.max(0, Math.min(window.innerHeight, fakeCursorY + dy));
-  const cursor = document.getElementById('fake-cursor');
-  if (cursor) {
-    cursor.style.left = `${fakeCursorX}px`;
-    cursor.style.top = `${fakeCursorY}px`;
-  }
-  if (draggedGhost) {
-    draggedGhost.style.left = `${fakeCursorX}px`;
-    draggedGhost.style.top = `${fakeCursorY}px`;
-  }
-  updateCursorSprite();
+function updateCursorAttachment() {
+  const node = document.getElementById('cursor-stack');
+  if (!node) return;
+  node.style.left = `${fakeCursorX}px`;
+  node.style.top = `${fakeCursorY}px`;
 }
 
 export function handleInventoryMouseMove(dx: number, dy: number) {
   updateFakeCursor(dx, dy);
-}
-
-export function handleInventoryMouseDown() {
-  const slotIndex = getSlotUnderCursor();
-  if (slotIndex === null) return;
-  const id = inventoryState[slotIndex];
-  if (!id) return;
-  startDrag(slotIndex, id);
-}
-
-export function handleInventoryMouseUp() {
-  endDrag();
-}
-
-// Right-click an armor item in the inventory: try to send it to its matching equipment slot.
-export function handleInventoryRightClick() {
-  const slotIndex = getSlotUnderCursor();
-  if (slotIndex === null) return;
-  const id = inventoryState[slotIndex];
-  if (!id) return;
-  const slotType = getItemSlot(id);
-  if (!slotType) return;
-
-  const targetIndex = armorEquipIndex(slotType);
-  if (targetIndex === null || targetIndex === slotIndex) return;
-
-  if (swapSlots(slotIndex, targetIndex)) {
-    renderInventory();
-    fireEquipChange();
-  }
 }
 
 export function isInventoryOpen() {
@@ -233,8 +362,6 @@ export function isInventoryOpen() {
   return overlay !== null && !overlay.classList.contains('hidden');
 }
 
-// Pick a hotbar slot (0..4) as the currently held item.
-// Pressing the already-selected slot deselects (nothing held).
 export function selectHotbar(index: number) {
   if (index < 0 || index >= HOTBAR_SIZE) return;
   selectedHotbarIndex = index === selectedHotbarIndex ? -1 : index;
@@ -245,23 +372,77 @@ export function selectHotbar(index: number) {
 
 export function getSelectedHotbarIndex() { return selectedHotbarIndex; }
 export function getHeldItemId(): string | null {
-  return selectedHotbarIndex === -1 ? null : inventoryState[selectedHotbarIndex];
+  return selectedHotbarIndex === -1 ? null : stackId(inventoryState[selectedHotbarIndex]);
 }
-export function getOffhandItemId(): string | null { return inventoryState[OFFHAND_SLOT]; }
+export function getOffhandItemId(): string | null { return stackId(inventoryState[OFFHAND_SLOT]); }
 
-// F key: move held mainhand item to/from the offhand slot.
-// Requires a hotbar slot to be selected; otherwise there's no "held" position to swap with.
 export function toggleOffhand() {
   if (selectedHotbarIndex === -1) return;
-  const heldId = inventoryState[selectedHotbarIndex];
-  const offId = inventoryState[OFFHAND_SLOT];
-  if (heldId === null && offId === null) return;
-  if (!canPlaceInSlot(heldId, OFFHAND_SLOT)) return; // only offhand-eligible items can sit in offhand
-  inventoryState[OFFHAND_SLOT] = heldId;
-  inventoryState[selectedHotbarIndex] = offId;
+  const held = inventoryState[selectedHotbarIndex];
+  const off = inventoryState[OFFHAND_SLOT];
+  if (held === null && off === null) return;
+  if (held && !canPlaceInSlot(held.id, OFFHAND_SLOT)) return;
+  inventoryState[OFFHAND_SLOT] = held;
+  inventoryState[selectedHotbarIndex] = off;
   renderInventory();
   fireEquipChange();
   fireHotbarSelect();
+}
+
+// STEP 5: Q-drop from the currently-held hotbar slot (inventory closed).
+
+export function dropHeldOne() {
+  if (selectedHotbarIndex === -1) return;
+  const stack = inventoryState[selectedHotbarIndex];
+  if (!stack) return;
+  fireDrop(stack.id, 1);
+  stack.count -= 1;
+  if (stack.count <= 0) inventoryState[selectedHotbarIndex] = null;
+  renderInventory();
+  fireEquipChange();
+  fireHotbarSelect();
+}
+
+export function dropHeldStack() {
+  if (selectedHotbarIndex === -1) return;
+  const stack = inventoryState[selectedHotbarIndex];
+  if (!stack) return;
+  fireDrop(stack.id, stack.count);
+  inventoryState[selectedHotbarIndex] = null;
+  renderInventory();
+  fireEquipChange();
+  fireHotbarSelect();
+}
+
+// STEP 5: pickup. Merge into existing same-id stacks first, then fill empties.
+// Returns leftover count that couldn't fit.
+export function tryAddItem(itemId: string, count: number): number {
+  const max = getMaxStack(itemId);
+  let remaining = count;
+
+  for (let i = 0; i < TOTAL_SLOTS && remaining > 0; i++) {
+    const s = inventoryState[i];
+    if (s && s.id === itemId && s.count < max) {
+      const room = max - s.count;
+      const moved = Math.min(room, remaining);
+      s.count += moved;
+      remaining -= moved;
+    }
+  }
+  for (let i = 0; i < TOTAL_SLOTS && remaining > 0; i++) {
+    if (inventoryState[i] === null) {
+      const moved = Math.min(max, remaining);
+      inventoryState[i] = { id: itemId, count: moved };
+      remaining -= moved;
+    }
+  }
+
+  if (remaining !== count) {
+    renderInventory();
+    fireEquipChange();
+    fireHotbarSelect();
+  }
+  return remaining;
 }
 
 function renderInventory() {
@@ -271,9 +452,26 @@ function renderInventory() {
     const isSelected = i === selectedHotbarIndex && i < HOTBAR_SIZE;
     slot.style.backgroundImage = `url('${isSelected ? SLOT_SELECTED_BG : SLOT_BG}')`;
     slot.innerHTML = '';
-    const itemId = inventoryState[i];
-    if (itemId) slot.appendChild(makeItemImg(itemId, i));
+    const stack = inventoryState[i];
+    if (stack) slot.appendChild(makeStackVisual(stack, i));
   });
+  renderCursorStack();
+}
+
+function renderCursorStack() {
+  let node = document.getElementById('cursor-stack');
+  if (!cursorStack) {
+    node?.remove();
+    return;
+  }
+  if (!node) {
+    node = document.createElement('div');
+    node.id = 'cursor-stack';
+    document.body.appendChild(node);
+  }
+  node.innerHTML = '';
+  node.appendChild(makeStackVisual(cursorStack, -1));
+  updateCursorAttachment();
 }
 
 function buildHotbarBar() {
@@ -402,7 +600,6 @@ export function createInventory() {
   characterPanel.appendChild(modelPreview);
   characterPanel.appendChild(stats);
 
-  // Equipment row: helmet (100), chestplate (101), offhand (102).
   const equipment = document.createElement('div');
   equipment.className = 'equipment';
   equipment.appendChild(makeSlot(HELMET_SLOT));
@@ -434,7 +631,6 @@ export function createInventory() {
   document.body.appendChild(overlay);
   document.body.appendChild(cursor);
 
-  // Suppress the browser's native right-click menu so we can use right-click for equipping.
   overlay.addEventListener('contextmenu', e => e.preventDefault());
 
   renderInventory();
@@ -460,7 +656,15 @@ export function hideInventory() {
   document.getElementById('inventory-overlay')?.classList.add('hidden');
   document.getElementById('hotbar-wrapper')?.classList.remove('darkened');
   document.getElementById('fake-cursor')?.classList.remove('visible');
-  cleanupDrag();
+  // If still carrying when the inventory closes: try to fit it back; world-drop
+  // anything that doesn't fit so it isn't silently lost.
+  if (cursorStack) {
+    const leftover = tryAddItem(cursorStack.id, cursorStack.count);
+    if (leftover > 0) fireDrop(cursorStack.id, leftover);
+    cursorStack = null;
+    renderInventory();
+  }
+  rightDragVisited = null;
 }
 
 export function toggleInventory() {
