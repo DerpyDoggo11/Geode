@@ -12,6 +12,7 @@ import {
 import { Equipment } from './player/gui/equipment';
 import { loadItems } from './player/gui/items';
 import { WorldDrops, preloadAllDropModels } from './player/gui/worldDrops';
+import { WeaponAnimator } from './player/weaponAnim';
 
 
 function applyToonShader(model, gradientSteps = 3) {
@@ -122,6 +123,12 @@ let rightEar = cube.getObjectByName('Sphere002');
 let rightArm = cube.getObjectByName('Sphere009');
 let leftArm  = cube.getObjectByName('Sphere010');
 
+// Capture the arm's rest-pose rotations from the GLB so the animation
+// system can restore them when returning to idle. Only z is animated by
+// the walk bob; x/y must come back to their model-imported values.
+const rightArmRestX = rightArm?.rotation.x ?? 0;
+const rightArmRestY = rightArm?.rotation.y ?? 0;
+
 scene.add(cube);
 
 const equipment = new Equipment({
@@ -133,11 +140,15 @@ const equipment = new Equipment({
 
 let previewEquipment: Equipment | null = null;
 
+const weaponAnimator = new WeaponAnimator();
+
 onEquipChange((c) => {
   equipment.equip('mainhand',  c.mainhand);
   equipment.equip('offhand',   c.offhand);
   equipment.equip('helmet',    c.helmet);
   equipment.equip('chestplate', c.chestplate);
+
+  weaponAnimator.setWeapon(c.mainhand);
 
   if (previewEquipment) {
     previewEquipment.equip('mainhand',  c.mainhand);
@@ -196,6 +207,7 @@ document.addEventListener('mousedown', (e) => {
     return;
   }
   if (!isPointerLocked) return;
+  weaponAnimator.onMouseDown(e.button);
 });
 
 document.addEventListener('mouseup', (e) => {
@@ -204,6 +216,7 @@ document.addEventListener('mouseup', (e) => {
     return;
   }
   if (!isPointerLocked) return;
+  weaponAnimator.onMouseUp(e.button);
 });
 
 document.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -425,7 +438,22 @@ function animate(time) {
   camera.lookAt(cube.position.x, cube.position.y + 1, cube.position.z);
 
   walkPhase = (walkPhase ?? 0) + hSpeed * dt * 2;
-  if (rightArm) rightArm.rotation.z = Math.sin(walkPhase) * 0.05;
+
+  const attackPose = weaponAnimator.update(dt);
+  if (attackPose.active) {
+    if (rightArm) {
+      rightArm.rotation.x = rightArmRestX + attackPose.rotX;
+      rightArm.rotation.y = rightArmRestY + attackPose.rotY;
+      rightArm.rotation.z = attackPose.rotZ;
+    }
+  } else {
+    // Restore original arm pose — only z gets the walk bob, matching pre-animation behaviour
+    if (rightArm) {
+      rightArm.rotation.x = rightArmRestX;
+      rightArm.rotation.y = rightArmRestY;
+      rightArm.rotation.z = Math.sin(walkPhase) * 0.05;
+    }
+  }
   if (leftArm)  leftArm.rotation.z  = -Math.cos(walkPhase) * 0.05;
   if (rightEar) rightEar.rotation.x = Math.sin(walkPhase) * 0.2;
   if (leftEar)  leftEar.rotation.x  = -Math.cos(walkPhase) * 0.2;

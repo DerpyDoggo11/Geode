@@ -2,10 +2,43 @@ import itemsData from './items.json';
 
 export type SlotType = 'weapon' | 'offhand' | 'helmet' | 'chestplate';
 
+
+
+
 export interface AttachTransform {
   offset?: [number, number, number];
   rotation?: [number, number, number];
   scale?: number;
+}
+
+/** A single keyframe for a weapon animation. time is 0–1. */
+export interface AnimKeyframe {
+  time: number;
+  armRot: [number, number, number]; // euler xyz in radians, applied to the right arm
+}
+
+/**
+ * Animation definition stored in items.json under the "animation" key.
+ *
+ * type:
+ *   'melee' – left-click triggers one random swing from `swings`
+ *   'bow'   – hold left-click to charge (bowCharge), release to fire (bowRelease)
+ *   'axe'   – right-click triggers one random swing from `swings`
+ */
+export interface WeaponAnimDef {
+  type: 'melee' | 'bow' | 'axe';
+  /** Seconds for one melee/axe swing animation (default 0.45). */
+  duration?: number;
+  /** Array of swing variants. One is chosen at random per attack. */
+  swings?: AnimKeyframe[][];
+  /** Bow: maximum charge time in seconds (default 2). */
+  chargeMax?: number;
+  /** Bow: keyframes played while the button is held (0=released, 1=full draw). */
+  bowCharge?: AnimKeyframe[];
+  /** Bow: keyframes played on release. */
+  bowRelease?: AnimKeyframe[];
+  /** Bow: duration of the release animation in seconds (default 0.35). */
+  bowReleaseDuration?: number;
 }
 
 export interface ItemDef {
@@ -18,6 +51,7 @@ export interface ItemDef {
   maxStack?: number;
   dropLightColor?: string;
   attach?: AttachTransform;
+  animation?: WeaponAnimDef;
   stats: Record<string, number | boolean>;
 }
 
