@@ -1,7 +1,3 @@
-:root {
-  --health-color: #2ecc40; 
-  --bar-skew: -20deg;
-}
 #hotbar-wrapper {
   position: fixed;
   bottom: clamp(8px, 2vh, 24px);
@@ -24,42 +20,11 @@
   position: relative;
   width: 45%;
   aspect-ratio: 9 / 1;
-  margin-bottom: 2px;
-  margin-left: 2%;
+  margin-bottom: 10px;
+  margin-left: 30%;
 }
-.healthbar-layer {
-  position: absolute;
-  inset: 0;
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-  pointer-events: none;
-}
-.healthbar-empty {
-  z-index: 1;
-}
-.healthbar-filled {
-  z-index: 2;
-  background-image: none !important;
-  background-color: var(--health-color);
-  transition:
-    clip-path 0.25s ease-out,
-    background-color 0.25s ease-out;
-  clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
-}
-.healthbar-highlight {
-  z-index: 3;
-  opacity: 0.4;
-  clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
-}
-.healthbar-ticks {
-  z-index: 4;
-}
-.health-tick {
-  width: 8%;
-  height: 100%;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
+#hb-fill-poly {
+  transition: fill 0.25s ease-out;
 }
 #hotbar {
   width: 100%;
@@ -272,8 +237,6 @@
   line-height: 1;
 }
 
-/* STEP 4: the stack carried by the cursor while the player has picked one up.
-   Fixed-position element pinned to fakeCursorX/Y; sized to match a small slot. */
 #cursor-stack {
   position: fixed;
   width: 48px;
@@ -282,9 +245,6 @@
   transform: translate(-50%, -50%);
   z-index: 9999;
 }
-/* Force every descendant non-interactive too. Without this, the .slot-item img
-   inside inherits pointer-events: auto from the base .slot-item rule and
-   intercepts the second click, making it impossible to drop the stack. */
 #cursor-stack,
 #cursor-stack * {
   pointer-events: none !important;
@@ -292,4 +252,75 @@
 #cursor-stack .slot-stack {
   width: 100%;
   height: 100%;
+}
+
+/* ── Tooltip ─────────────────────────────────────────────────────────────── */
+
+#item-tooltip {
+  display: none;
+  position: fixed;
+  box-sizing: border-box;
+  width: 260px;
+  background-image: url(/gui/inventory/tooltipBG.svg);
+  background-size: 100% 100%;
+  clip-path: polygon(16.75% 0%, 100% 0%, 80.2% 100%, 0% 100%);
+  padding: 10px 52px 16px 46px;
+  pointer-events: none;
+  z-index: 9999;
+  font-family: monospace;
+  user-select: none;
+}
+.tt-header {
+  display: flex;
+  align-items: center;
+  padding-top: 4px;
+}
+.tt-title {
+  flex: 1;
+  text-align: center;
+}
+.tt-name {
+  color: #fff;
+  font-weight: bold;
+  font-size: 14px;
+}
+.tt-slot {
+  color: #e8a0ff;
+  font-size: 10px;
+  margin-top: 1px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.tt-desc {
+  color: #ddd;
+  font-size: 11px;
+  margin-top: 5px;
+  line-height: 1.45;
+  font-style: italic;
+}
+.tt-divider {
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin-top: 6px;
+  padding-top: 5px;
+}
+.tt-stats {
+  color: #aaddff;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.tt-stats .stat-label {
+  color: #c8c8ff;
+}
+.tt-stats .stat-value {
+  float: right;
+  color: #fff;
+  font-weight: bold;
+  padding-left: 18px;
+}
+.tt-count {
+  color: #ffdd88;
+  font-size: 11px;
+  font-weight: bold;
+  flex-shrink: 0;
+  width: 28px;
 }

@@ -6,7 +6,6 @@ import {
   createInventory, toggleInventory, setCharacterPreview, setHealth, isInventoryOpen,
   handleInventoryMouseMove, handleInventoryMouseUp, handleInventoryMouseDown,
   selectHotbar, toggleOffhand, onEquipChange, refreshEquipment,
-  // STEP 5: drop & pickup hooks.
   onItemDrop, tryAddItem, dropHeldOne, dropHeldStack,
   consumeArrow,
 } from './player/gui/inventory';
@@ -332,14 +331,52 @@ document.addEventListener('mouseup', (e) => {
 
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 
+
+// UNDO FOR PRODUCTION
+// window.addEventListener('beforeunload', (e) => {
+//   e.preventDefault();
+//   e.returnValue = '';
+// });
+
+document.addEventListener('keydown', (e) => {
+  const ctrl = e.ctrlKey || e.metaKey;
+
+  if (ctrl) {
+    if ('wtnlh'.includes(e.key.toLowerCase())) { e.preventDefault(); return; }
+    if (e.key === 'Tab') { e.preventDefault(); return; }
+
+    // UNDO FOR PRODUCTION
+    //if (e.key === 'r' || e.key === 'R' || e.key === 'F5') { e.preventDefault(); return; }
+
+    if ('fgpsdhjuaq'.includes(e.key.toLowerCase())) { e.preventDefault(); return; }
+    if (['+', '-', '=', '_', '0'].includes(e.key)) { e.preventDefault(); return; }
+    if (e.key >= '1' && e.key <= '9') { e.preventDefault(); return; }
+    if (e.key === 'n' || e.key === 'N') { e.preventDefault(); return; }
+  }
+  if (e.key === 'Backspace') { e.preventDefault(); return; }
+
+  if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+    e.preventDefault(); return;
+  }
+
+  if (e.key === 'F1')  { e.preventDefault(); return; }
+  if (e.key === 'F3')  { e.preventDefault(); return; }
+  if (e.key === 'F5')  { e.preventDefault(); return; }
+  if (e.key === 'F6')  { e.preventDefault(); return; }
+}, { capture: true }); 
+
 const velocity = new THREE.Vector3();
+
 const ACCEL = 450;
+const AIR_ACCEL = 80;
 const FRICTION = 10;
+const AIR_FRICTION = 0.4;
 const BASE_MAX_SPEED = 10;
 const SPRINT_MULTIPLIER = 3;
 const SNEAK_MULTIPLIER = 0.9;
 const GRAVITY = -100;
 const JUMP_SPEED = 30;
+
 const WALKABLE_SLOPE = Math.cos(THREE.MathUtils.degToRad(50));
 const MAX_STEP_DIST = SPHERE_RADIUS * 0.5;
 
@@ -457,17 +494,30 @@ function animate(time) {
   if (sprinting) maxSpeed *= SPRINT_MULTIPLIER;
   else if (sneaking) maxSpeed *= SNEAK_MULTIPLIER;
 
-  velocity.x += inX * ACCEL * dt;
-  velocity.z += inZ * ACCEL * dt;
+  const accel   = onGround ? ACCEL : AIR_ACCEL;
+  const friction = onGround ? FRICTION : AIR_FRICTION;
 
-  const horizontalFriction = Math.max(0, 1 - FRICTION * dt);
-  velocity.x *= horizontalFriction;
-  velocity.z *= horizontalFriction;
+  const hSpeedPre = onGround ? 0 : Math.hypot(velocity.x, velocity.z);
+
+  velocity.x += inX * accel * dt;
+  velocity.z += inZ * accel * dt;
+
+  const hFriction = Math.max(0, 1 - friction * dt);
+  velocity.x *= hFriction;
+  velocity.z *= hFriction;
 
   const hSpeed = Math.hypot(velocity.x, velocity.z);
-  if (hSpeed > maxSpeed) {
-    velocity.x *= maxSpeed / hSpeed;
-    velocity.z *= maxSpeed / hSpeed;
+  if (onGround) {
+    if (hSpeed > maxSpeed) {
+      velocity.x *= maxSpeed / hSpeed;
+      velocity.z *= maxSpeed / hSpeed;
+    }
+  } else {
+    const airCap = Math.max(maxSpeed, hSpeedPre);
+    if (hSpeed > airCap) {
+      velocity.x *= airCap / hSpeed;
+      velocity.z *= airCap / hSpeed;
+    }
   }
 
   velocity.y += GRAVITY * dt;
@@ -507,15 +557,10 @@ function animate(time) {
   }
   onGround = groundedThisFrame;
 
-  // STEP 5: animate drops & check pickup. The callback returns true to despawn.
-  // tryAddItem returns leftover; if leftover is the full count, nothing fit
-  // and the drop stays. Otherwise some/all was absorbed — leave the drop only
-  // if some leftover remains, by spawning a replacement smaller pile.
   worldDrops.update(dt, cube.position, (itemId, count) => {
     const leftover = tryAddItem(itemId, count);
-    if (leftover === count) return false; // no room — leave drop as is
+    if (leftover === count) return false;
     if (leftover > 0) {
-      // Partial pickup: respawn the remainder so the player can come back for it.
       const forward = new THREE.Vector3(-Math.sin(cameraYaw), 0, -Math.cos(cameraYaw));
       worldDrops.spawn(itemId, leftover, cube.position, forward);
     }
@@ -558,7 +603,6 @@ function animate(time) {
       rightArm.rotation.z = attackPose.rotZ;
     }
   } else {
-    // Restore original arm pose — only z gets the walk bob, matching pre-animation behaviour
     if (rightArm) {
       rightArm.rotation.x = rightArmRestX;
       rightArm.rotation.y = rightArmRestY;
@@ -569,7 +613,6 @@ function animate(time) {
   if (rightEar) rightEar.rotation.x = Math.sin(walkPhase) * 0.2;
   if (leftEar)  leftEar.rotation.x  = -Math.cos(walkPhase) * 0.2;
 
-  // ── Bow trajectory preview ────────────────────────────────────────────────
   if (bowCharging) {
     trajDots.visible = true;
     const charge = weaponAnimator.getChargeNormalized();
@@ -583,7 +626,6 @@ function animate(time) {
     trajDots.visible = false;
   }
 
-  // ── Arrow projectile physics ──────────────────────────────────────────────
   for (let i = activeArrows.length - 1; i >= 0; i--) {
     const a = activeArrows[i];
     a.age += dt;
@@ -597,7 +639,6 @@ function animate(time) {
     a.vel.y += BOW_GRAVITY * dt;
     const speed = a.vel.length();
 
-    // Collision: short raycast in direction of travel
     if (speed > 0.05) {
       const velDir = a.vel.clone().normalize();
       arrowRaycaster.set(a.mesh.position, velDir);
@@ -607,14 +648,13 @@ function animate(time) {
         a.mesh.position.copy(hits[0].point);
         a.vel.set(0, 0, 0);
         a.stuck = true;
-        a.maxAge = a.age + 6; // linger 6 s after embedding
+        a.maxAge = a.age + 6;
         continue;
       }
     }
 
     a.mesh.position.addScaledVector(a.vel, dt);
 
-    // Orient arrow cylinder (Y-axis) along velocity
     if (speed > 0.05) {
       a.mesh.quaternion.setFromUnitVectors(arrowUpVec, a.vel.clone().normalize());
     }
@@ -638,7 +678,7 @@ function resizeRendererToDisplaySize(renderer) {
 }
 
 createInventory();
-setHealth(10);
+setHealth(8);
 
 
 document.addEventListener('keydown', (e) => {
@@ -658,9 +698,6 @@ document.addEventListener('keydown', (e) => {
     toggleOffhand();
   }
 
-  // STEP 5: Q = drop one from the held hotbar slot. Shift+Q = drop whole stack.
-  // Gated on inventory closed so Q doesn't conflict with future in-inventory keys,
-  // and Shift+Q doesn't accidentally fire while sprint-walking through the menu.
   if (e.code === 'KeyQ' && !isInventoryOpen()) {
     if (e.shiftKey) dropHeldStack();
     else dropHeldOne();

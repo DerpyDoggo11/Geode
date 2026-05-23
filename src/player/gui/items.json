@@ -1,7 +1,7 @@
 {
   "stoneSword": {
     "name": "Stone Sword",
-    "tooltip": { "description": "A crude blade hewn from stone. Reliable, but brittle under heavy use." },
+    "tooltip": { "description": "ooga booga, stone + stick = sword" },
     "slot": "weapon",
     "image": "/gui/inventory/items/stoneSword.svg",
     "model": "/models/items/glb/stoneSword.glb",
@@ -36,7 +36,7 @@
   },
   "ironSword": {
     "name": "Iron Sword",
-    "tooltip": { "description": "The workhorse blade of every adventurer. Solid and dependable." },
+    "tooltip": { "description": "a more advanced version of the ooga booga sword" },
     "slot": "weapon",
     "image": "/gui/inventory/items/ironSword.svg",
     "model": "/models/items/glb/ironSword.glb",
@@ -71,7 +71,7 @@
   },
   "goldSword": {
     "name": "Gold Sword",
-    "tooltip": { "description": "Gleaming and light, though softer than iron. Strikes fast." },
+    "tooltip": { "description": "attacks quick, slices butter like butter" },
     "slot": "weapon",
     "image": "/gui/inventory/items/goldSword.svg",
     "model": "/models/items/glb/goldSword.glb",
@@ -106,7 +106,7 @@
   },
   "diamondSword": {
     "name": "Diamond Sword",
-    "tooltip": { "description": "Impossibly sharp. Cuts through almost anything without slowing." },
+    "tooltip": { "description": "sharpest of all materials" },
     "slot": "weapon",
     "image": "/gui/inventory/items/diamondSword.svg",
     "model": "/models/items/glb/diamondSword.glb",
@@ -141,7 +141,7 @@
   },
   "stonePickaxe": {
     "name": "Stone Pickaxe",
-    "tooltip": { "description": "A heavy stone pick. Enough to crack most rock, if you swing hard." },
+    "tooltip": { "description": "ooga booga pickaxe" },
     "slot": "weapon",
     "image": "/gui/inventory/items/stonePickaxe.svg",
     "model": "/models/items/glb/stonePickaxe.glb",
@@ -176,7 +176,7 @@
   },
   "ironPickaxe": {
     "name": "Iron Pickaxe",
-    "tooltip": { "description": "Tough iron teeth make short work of stone and ore alike." },
+    "tooltip": { "description": "like the iron sword but for mining stuff" },
     "slot": "weapon",
     "image": "/gui/inventory/items/ironPickaxe.svg",
     "model": "/models/items/glb/ironPickaxe.glb",
@@ -211,7 +211,7 @@
   },
   "goldPickaxe": {
     "name": "Gold Pickaxe",
-    "tooltip": { "description": "Surprisingly fast at mining despite its softness. Sparkles attractively." },
+    "tooltip": { "description": "very quick, very shiny" },
     "slot": "weapon",
     "image": "/gui/inventory/items/goldPickaxe.svg",
     "model": "/models/items/glb/goldPickaxe.glb",
@@ -246,7 +246,7 @@
   },
   "diamondPickaxe": {
     "name": "Diamond Pickaxe",
-    "tooltip": { "description": "No ore can withstand its crystalline edge. The pinnacle of mining tools." },
+    "tooltip": { "description": "best tool for mining, good if you like mining" },
     "slot": "weapon",
     "image": "/gui/inventory/items/diamondPickaxe.svg",
     "model": "/models/items/glb/diamondPickaxe.glb",
@@ -281,7 +281,7 @@
   },
   "bow": {
     "name": "Bow",
-    "tooltip": { "description": "Hold to draw, release to fire. Move the mouse up or down to adjust aim." },
+    "tooltip": { "description": "good at taking out bad guys from the safety of your bedroom" },
     "slot": "weapon",
     "image": "/gui/inventory/items/bow.svg",
     "model": "/models/items/glb/bow.glb",
@@ -312,7 +312,7 @@
   },
   "punchBow": {
     "name": "Punch Bow",
-    "tooltip": { "description": "Enchanted to knock targets back on impact. Bring your own arrows." },
+    "tooltip": { "description": "bow but with better knockback" },
     "slot": "weapon",
     "image": "/gui/inventory/items/punchBow.svg",
     "model": "/models/items/glb/punchBow.glb",
@@ -343,7 +343,7 @@
   },
   "arrow": {
     "name": "Arrow",
-    "tooltip": { "description": "Feathered projectile. One is consumed each time a bow fires." },
+    "tooltip": { "description": "sharp and pointy, used in bows" },
     "slot": "offhand",
     "image": "/gui/inventory/items/arrow.svg",
     "model": "/models/items/glb/arrow.glb",
@@ -353,41 +353,6 @@
       "offset": [0.5, -0.5, -1.5],
       "rotation": [0, -1.2, -1.5708],
       "scale": 1
-    },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
-  },
-  "hammer": {
-    "name": "Hammer",
-    "tooltip": { "description": "A massive war hammer. Right-click to deliver a crushing overhead blow." },
-    "slot": "weapon",
-    "image": "/gui/inventory/items/hammer.svg",
-    "model": "/models/items/glb/hammer.glb",
-    "maxStack": 1,
-    "dropLightColor": "#b08040",
-    "attach": {
-      "offset": [0.5, -0.5, -1.5],
-      "rotation": [0, -1.2, -1.5708],
-      "scale": 1
-    },
-    "animation": {
-      "type": "axe",
-      "duration": 0.40,
-      "swings": [
-        [
-          { "time": 0.00, "armRot": [ 0.00,  0.00,  0.00] },
-          { "time": 0.20, "armRot": [ 0.15, -0.40,  0.15] },
-          { "time": 0.45, "armRot": [-0.05,  0.55, -0.25] },
-          { "time": 0.85, "armRot": [ 0.05,  0.20, -0.10] },
-          { "time": 1.00, "armRot": [ 0.00,  0.00,  0.00] }
-        ],
-        [
-          { "time": 0.00, "armRot": [ 0.00,  0.00,  0.00] },
-          { "time": 0.20, "armRot": [ 0.15, -0.40,  0.05] },
-          { "time": 0.45, "armRot": [-0.05,  0.55, -0.05] },
-          { "time": 0.65, "armRot": [ 0.05,  0.20, -0.00] },
-          { "time": 1.00, "armRot": [ 0.00,  0.00,  0.00] }
-        ]
-      ]
     },
     "stats": { "damage": 12, "speed": 3, "range": 1.5 }
   }

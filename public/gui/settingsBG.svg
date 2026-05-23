@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="157.70273mm"
+   height="100mm"
+   viewBox="0 0 157.70273 100"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
+   sodipodi:docname="tooltipBG.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.70710678"
+     inkscape:cx="299.10617"
+     inkscape:cy="257.38687"
+     inkscape:window-width="1220"
+     inkscape:window-height="706"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1"
+     showgrid="false" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(7.7027277)">
+    <path
+       style="fill:#47195d;fill-opacity:1;stroke-width:0.256099"
+       d="M 11.00614,6.3101889 -7.7027277,100 H 118.76921 L 142.29727,6.3101889 Z"
+       id="path1-3"
+       sodipodi:nodetypes="ccccc"
+       inkscape:label="path1-3" />
+    <path
+       style="fill:#9e2083;fill-opacity:1;stroke-width:0.256099"
+       d="M 18.708874,0 7e-6,93.689813 H 126.47194 L 150,0 Z"
+       id="path1"
+       sodipodi:nodetypes="ccccc" />
+  </g>
+</svg>
