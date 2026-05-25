@@ -29,27 +29,50 @@ export interface ArmPose {
   rotZ: number;
 }
 
-type State = 'idle' | 'melee' | 'axe' | 'bow_charge' | 'bow_release';
+type State = 'idle' | 'melee' | 'axe' | 'bow_charge' | 'bow_release' | 'equip';
+
+// Fixed keyframes for the draw/equip animation: arm swings up from low-and-out into rest position.
+const EQUIP_FRAMES: AnimKeyframe[] = [
+  { time: 0.00, armRot: [ 0.3,  0.5, -1.0] },
+  { time: 0.60, armRot: [-0.05, -0.05, 0.08] },
+  { time: 1.00, armRot: [ 0.0,  0.0,  0.0] },
+];
 
 export class WeaponAnimator {
   private def: WeaponAnimDef | null = null;
+  private currentItemId: string | null = null;
 
   private state: State = 'idle';
   private t = 0;
   private activeSwing: AnimKeyframe[] = [];
+  private equipDur = 0.35;
 
   private chargeT = 0;
 
   setWeapon(itemId: string | null): void {
     const item = itemId ? getItem(itemId) : null;
+    const changed = itemId !== this.currentItemId;
+    this.currentItemId = itemId;
     this.def = item?.animation ?? null;
-    this.state = 'idle';
-    this.t = 0;
     this.chargeT = 0;
     this.activeSwing = [];
+
+    if (itemId && changed) {
+      this.equipDur = item?.equipDuration ?? 0.35;
+      this.state = 'equip';
+      this.t = 0;
+    } else {
+      this.state = 'idle';
+      this.t = 0;
+    }
+  }
+
+  isEquipping(): boolean {
+    return this.state === 'equip';
   }
 
   onMouseDown(button: number): void {
+    if (this.state === 'equip') return;
     if (!this.def) return;
 
     if (this.def.type === 'melee' && button === 0) {
@@ -94,6 +117,13 @@ export class WeaponAnimator {
   }
 
   update(dt: number): ArmPose {
+    if (this.state === 'equip') {
+      this.t = Math.min(this.t + dt / this.equipDur, 1);
+      const [rx, ry, rz] = lerpFrames(EQUIP_FRAMES, this.t);
+      if (this.t >= 1) this.state = 'idle';
+      return { active: true, rotX: rx, rotY: ry, rotZ: rz };
+    }
+
     if (!this.def || this.state === 'idle') {
       return { active: false, rotX: 0, rotY: 0, rotZ: 0 };
     }

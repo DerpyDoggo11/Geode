@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="75.783371mm"
+   height="87.096062mm"
+   viewBox="0 0 75.783371 87.096062"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
+   sodipodi:docname="diamondSword.svg"
+   inkscape:export-filename="broadswordExport.svg"
+   inkscape:export-xdpi="29.1632"
+   inkscape:export-ydpi="29.1632"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="0.65233"
+     inkscape:cx="-75.881839"
+     inkscape:cy="265.20319"
+     inkscape:window-width="1220"
+     inkscape:window-height="706"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="g2"
+     showgrid="false"
+     showguides="false" />
+  <defs
+     id="defs1">
+    <inkscape:perspective
+       sodipodi:type="inkscape:persp3d"
+       inkscape:vp_x="0 : 66.159612 : 1"
+       inkscape:vp_y="0 : 1920.2663 : 0"
+       inkscape:vp_z="75.783367 : 65.586011 : 1"
+       inkscape:persp3d-origin="49.362402 : 42.484545 : 1"
+       id="perspective1" />
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g
+       id="g1"
+       inkscape:label="sword"
+       transform="translate(-0.93912036,-0.83067533)">
+      <g
+         sodipodi:type="inkscape:box3d"
+         id="g2"
+         style="fill-rule:evenodd;stroke:none;stroke-linejoin:round"
+         inkscape:perspectiveID="#perspective1"
+         inkscape:corner0="1.30157 : -0.00077787808 : 0 : 1"
+         inkscape:corner7="0.33681577 : -0.020674421 : 1.0976858 : 1">
+        <path
+           style="fill:#8b9ec6;stroke-width:0.323227"
+           d="M 38.326277,23.487695 18.160408,35.508235 38.974206,47.246713 59.753314,35.040759 Z"
+           id="path8" />
+        <path
+           style="fill:#92a4ca;fill-opacity:1;stroke-width:0.323227"
+           d="m 18.160408,35.508235 0.813816,20.613928 19.66323,10.997363 0.336752,-19.872813 z"
+           id="path9" />
+        <path
+           style="fill:#a3b2d1;fill-opacity:1;stroke-width:0.323227"
+           d="M 38.974206,47.246713 38.637454,67.119526 58.826045,55.523735 59.753314,35.040759 Z"
+           id="path10" />
+      </g>
+    </g>
+  </g>
+</svg>

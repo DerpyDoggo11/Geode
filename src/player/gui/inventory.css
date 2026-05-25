@@ -52,34 +52,102 @@
 #inventory-overlay.hidden {
   display: none;
 }
+
+/* ── Panel ─────────────────────────────────────────────────────────────────── */
+
 .inventory-panel {
-  width: clamp(500px, 70vw, 900px);
-  aspect-ratio: 800 / 346;
+  width: clamp(500px, 72vw, 960px);
+  aspect-ratio: 8885 / 5026;
   background-size: 100% 100%;
   background-repeat: no-repeat;
   position: relative;
 }
+
+/* ── Tab bar ───────────────────────────────────────────────────────────────── */
+
+.inv-tab-bar {
+  position: absolute;
+  top: 0;
+  left: 9%;
+  right: 0;
+  height: 23.5%;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 2% 2%;
+  gap: 0.6%;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+.inv-tab {
+  height: 62%;
+  min-width: clamp(44px, 6.5%, 80px);
+  padding: 0 3.5%;
+  background: rgba(0, 0, 0, 0.2);
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: monospace;
+  font-size: clamp(8px, 0.9vw, 13px);
+  cursor: pointer;
+  clip-path: polygon(8% 0%, 100% 0%, 92% 100%, 0% 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+
+.inv-tab:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.inv-tab.active {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-weight: bold;
+}
+
+/* ── Tab panes ─────────────────────────────────────────────────────────────── */
+
+.inv-tab-pane {
+  position: absolute;
+  top: 23.5%;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.inv-tab-pane.hidden {
+  display: none;
+}
+
+/* ── Inventory pane layout ─────────────────────────────────────────────────── */
+
 .equipment {
   position: absolute;
-  top: 13%;
-  left: 13%;
+  top: 8%;
+  left: 9%;
   display: flex;
   flex-direction: row;
-  gap: 1%;
+  gap: 2%;
 }
+
 .character-panel {
   position: absolute;
-  bottom: 5%;
+  bottom: 6%;
+  left: 5%;
   width: 40%;
-  left: 10%;
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 10px;
   pointer-events: none;
 }
+
 .model-preview {
-  width: 70%;
+  width: 60%;
   aspect-ratio: 120 / 160;
   pointer-events: none;
   background: transparent;
@@ -89,34 +157,41 @@
   flex-shrink: 0;
   overflow: hidden;
 }
+
 .model-preview canvas {
   width: 100%;
   height: 100%;
   display: block;
 }
+
 .stats {
   font-size: clamp(10px, 1vw, 14px);
   line-height: 1.4;
-  text-align: center;
+  text-align: left;
   flex: 1;
 }
+
 .inventory-grid {
   position: absolute;
-  top: 6%;
-  right: 12%;
+  top: 4%;
+  right: 4%;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 1%;
-  width: 35%;
+  gap: 1.2%;
+  width: 47%;
 }
+
 .inventory-hotbar-row {
   position: absolute;
-  bottom: 15%;
-  right: 13%;
+  bottom: 7%;
+  right: 4%;
   display: flex;
-  gap: 1%;
-  width: 35%;
+  gap: 1.2%;
+  width: 47%;
 }
+
+/* ── Slots ─────────────────────────────────────────────────────────────────── */
+
 .inventory-slot {
   aspect-ratio: 1;
   display: flex;
@@ -127,17 +202,21 @@
   align-items: center;
   pointer-events: auto;
 }
+
 .inventory-grid .inventory-slot,
 .inventory-hotbar-row .inventory-slot {
   width: 100%;
 }
+
 #hotbar .inventory-slot {
   height: 70%;
   aspect-ratio: 1;
 }
+
 .equipment .inventory-slot {
   width: clamp(36px, 4vw, 56px);
 }
+
 .slot-item {
   width: 80%;
   height: 80%;
@@ -145,9 +224,13 @@
   pointer-events: auto;
   cursor: grab;
 }
+
 .slot-item:active {
   cursor: grabbing;
 }
+
+/* ── Fake cursor ───────────────────────────────────────────────────────────── */
+
 #fake-cursor {
   position: fixed;
   width: 24px;
@@ -158,29 +241,19 @@
   display: none;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
 }
+
 #fake-cursor.visible {
   display: block;
 }
+
 #fake-cursor svg {
   width: 100%;
   height: 100%;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
 }
-.slot-item.dragging-ghost {
-  position: fixed;
-  pointer-events: none;
-  z-index: 9999;
-  width: 48px;
-  height: 48px;
-  transform: translate(-50%, -50%);
-  opacity: 0.85;
-}
 
-/* === STEP 3: stack rendering === */
+/* ── Stack rendering ───────────────────────────────────────────────────────── */
 
-/* Wrapper that replaces the bare <img> inside a slot.
-   pointer-events: none so the slot div (which holds data-slot-index) still
-   receives elementFromPoint hits. */
 .slot-stack {
   position: relative;
   width: 100%;
@@ -188,9 +261,6 @@
   pointer-events: none;
 }
 
-/* Main sprite: absolutely centered. Overrides the original .slot-item rules
-   only when inside .slot-stack, so the dragging-ghost (which is NOT inside
-   a slot-stack) keeps its original styling and behavior. */
 .slot-stack .slot-item {
   position: absolute;
   left: 50%;
@@ -202,8 +272,6 @@
   z-index: 1;
 }
 
-/* Ghost copies behind the main sprite. Translate offsets are % of the
-   ghost's own size, so they stay tight at any slot scale. */
 .slot-item-ghost {
   position: absolute;
   left: 50%;
@@ -245,16 +313,151 @@
   transform: translate(-50%, -50%);
   z-index: 9999;
 }
+
 #cursor-stack,
 #cursor-stack * {
   pointer-events: none !important;
 }
+
 #cursor-stack .slot-stack {
   width: 100%;
   height: 100%;
 }
 
-/* ── Tooltip ─────────────────────────────────────────────────────────────── */
+/* ── Settings pane ─────────────────────────────────────────────────────────── */
+
+.settings-inner {
+  position: absolute;
+  inset: 0;
+  padding: 5% 10% 5% 8%;
+  display: flex;
+  flex-direction: column;
+  gap: 5%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6%;
+}
+
+.settings-section-title {
+  color: #c8d8ff;
+  font-family: monospace;
+  font-size: clamp(9px, 1vw, 13px);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  padding-bottom: 4px;
+  margin-bottom: 2px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 4%;
+}
+
+.settings-label {
+  color: #dde8ff;
+  font-family: monospace;
+  font-size: clamp(9px, 0.95vw, 13px);
+  flex: 1;
+  white-space: nowrap;
+}
+
+.settings-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.settings-btn {
+  font-family: monospace;
+  font-size: clamp(10px, 1vw, 14px);
+  color: #fff;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.1s, background 0.1s;
+  pointer-events: auto;
+}
+
+.settings-dec,
+.settings-inc {
+  width: clamp(18px, 2vw, 26px);
+  height: clamp(18px, 2vw, 26px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.12);
+  clip-path: polygon(10% 0%, 100% 0%, 90% 100%, 0% 100%);
+}
+
+.settings-dec:hover,
+.settings-inc:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.settings-val {
+  color: #fff;
+  font-family: monospace;
+  font-size: clamp(9px, 0.9vw, 12px);
+  font-weight: bold;
+  min-width: clamp(36px, 4vw, 52px);
+  text-align: center;
+  pointer-events: none;
+}
+
+.settings-reset {
+  margin-top: auto;
+  align-self: flex-end;
+  padding: 5px clamp(10px, 2%, 18px);
+  background: rgba(145, 167, 218, 0.22);
+  font-size: clamp(9px, 0.85vw, 12px);
+  clip-path: polygon(6% 0%, 100% 0%, 94% 100%, 0% 100%);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.settings-reset:hover {
+  background: rgba(145, 167, 218, 0.42);
+}
+
+/* ── Coming soon pane ──────────────────────────────────────────────────────── */
+
+.coming-soon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  user-select: none;
+}
+
+.coming-soon-title {
+  color: #c8d8ff;
+  font-family: monospace;
+  font-size: clamp(14px, 1.8vw, 22px);
+  font-weight: bold;
+  margin-bottom: 8px;
+  letter-spacing: 0.08em;
+}
+
+.coming-soon-sub {
+  color: rgba(200, 220, 255, 0.4);
+  font-family: monospace;
+  font-size: clamp(10px, 1.1vw, 15px);
+  font-style: italic;
+  letter-spacing: 0.05em;
+}
+
+/* ── Tooltip ───────────────────────────────────────────────────────────────── */
 
 #item-tooltip {
   display: none;
@@ -270,20 +473,24 @@
   font-family: monospace;
   user-select: none;
 }
+
 .tt-header {
   display: flex;
   align-items: center;
   padding-top: 4px;
 }
+
 .tt-title {
   flex: 1;
   text-align: center;
 }
+
 .tt-name {
   color: #fff;
   font-weight: bold;
   font-size: 14px;
 }
+
 .tt-slot {
   color: #e8a0ff;
   font-size: 10px;
@@ -291,6 +498,7 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+
 .tt-desc {
   color: #ddd;
   font-size: 11px;
@@ -298,25 +506,30 @@
   line-height: 1.45;
   font-style: italic;
 }
+
 .tt-divider {
   border-top: 1px solid rgba(255, 255, 255, 0.2);
   margin-top: 6px;
   padding-top: 5px;
 }
+
 .tt-stats {
   color: #aaddff;
   font-size: 11px;
   line-height: 1.7;
 }
+
 .tt-stats .stat-label {
   color: #c8c8ff;
 }
+
 .tt-stats .stat-value {
   float: right;
   color: #fff;
   font-weight: bold;
   padding-left: 18px;
 }
+
 .tt-count {
   color: #ffdd88;
   font-size: 11px;

@@ -8,7 +8,7 @@
    version="1.1"
    id="svg1"
    inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
-   sodipodi:docname="goldSword.svg"
+   sodipodi:docname="diamondSword.svg"
    inkscape:export-filename="broadswordExport.svg"
    inkscape:export-xdpi="29.1632"
    inkscape:export-ydpi="29.1632"
@@ -26,9 +26,9 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
-     inkscape:zoom="1.30466"
-     inkscape:cx="69.36673"
-     inkscape:cy="168.62631"
+     inkscape:zoom="0.65233"
+     inkscape:cx="-75.881839"
+     inkscape:cy="265.20319"
      inkscape:window-width="1220"
      inkscape:window-height="706"
      inkscape:window-x="0"
@@ -38,7 +38,15 @@
      showgrid="false"
      showguides="false" />
   <defs
-     id="defs1" />
+     id="defs1">
+    <inkscape:perspective
+       sodipodi:type="inkscape:persp3d"
+       inkscape:vp_x="1.8534854 : 70.35915 : 1"
+       inkscape:vp_y="0 : 1920.2663 : 0"
+       inkscape:vp_z="96.871317 : 70.35915 : 1"
+       inkscape:persp3d-origin="49.362402 : 42.484545 : 1"
+       id="perspective1" />
+  </defs>
   <g
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"

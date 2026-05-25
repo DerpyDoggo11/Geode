@@ -32,7 +32,9 @@
         ]
       ]
     },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 },
+    "speedModifier": 0.95,
+    "equipDuration": 0.30
   },
   "ironSword": {
     "name": "Iron Sword",
@@ -67,7 +69,9 @@
         ]
       ]
     },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 },
+    "speedModifier": 0.95,
+    "equipDuration": 0.30
   },
   "goldSword": {
     "name": "Gold Sword",
@@ -102,7 +106,9 @@
         ]
       ]
     },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 },
+    "speedModifier": 0.97,
+    "equipDuration": 0.28
   },
   "diamondSword": {
     "name": "Diamond Sword",
@@ -137,7 +143,9 @@
         ]
       ]
     },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 },
+    "speedModifier": 0.93,
+    "equipDuration": 0.32
   },
   "stonePickaxe": {
     "name": "Stone Pickaxe",
@@ -172,7 +180,9 @@
         ]
       ]
     },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 },
+    "speedModifier": 0.85,
+    "equipDuration": 0.50
   },
   "ironPickaxe": {
     "name": "Iron Pickaxe",
@@ -207,7 +217,9 @@
         ]
       ]
     },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 },
+    "speedModifier": 0.87,
+    "equipDuration": 0.48
   },
   "goldPickaxe": {
     "name": "Gold Pickaxe",
@@ -242,7 +254,9 @@
         ]
       ]
     },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 },
+    "speedModifier": 0.90,
+    "equipDuration": 0.42
   },
   "diamondPickaxe": {
     "name": "Diamond Pickaxe",
@@ -277,7 +291,9 @@
         ]
       ]
     },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 },
+    "speedModifier": 0.88,
+    "equipDuration": 0.45
   },
   "bow": {
     "name": "Bow",
@@ -308,7 +324,9 @@
         { "time": 1.00, "armRot": [ 0.00,  0.00,  0.00] }
       ]
     },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 },
+    "speedModifier": 0.92,
+    "equipDuration": 0.40
   },
   "punchBow": {
     "name": "Punch Bow",
@@ -339,7 +357,9 @@
         { "time": 1.00, "armRot": [ 0.00,  0.00,  0.00] }
       ]
     },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 },
+    "speedModifier": 0.90,
+    "equipDuration": 0.42
   },
   "arrow": {
     "name": "Arrow",
@@ -354,6 +374,7 @@
       "rotation": [0, -1.2, -1.5708],
       "scale": 1
     },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 }
+    "stats": { "damage": 12, "speed": 3, "range": 1.5 },
+    "equipDuration": 0.20
   }
 }

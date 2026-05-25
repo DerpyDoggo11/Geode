@@ -59,6 +59,10 @@ export interface ItemDef {
   animation?: WeaponAnimDef;
   tooltip?: ItemTooltip;
   stats: Record<string, number | boolean>;
+  /** Multiplicative movement speed modifier while this item is held (mainhand or offhand). 1.0 = no change, 0.9 = 10% slower. */
+  speedModifier?: number;
+  /** Seconds to play the equip (draw) animation when switching to this item. Defaults to 0.35. */
+  equipDuration?: number;
 }
 
 const registry: Record<string, ItemDef> = {};

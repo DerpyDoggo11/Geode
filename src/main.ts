@@ -7,7 +7,7 @@ import {
   handleInventoryMouseMove, handleInventoryMouseUp, handleInventoryMouseDown,
   selectHotbar, toggleOffhand, onEquipChange, refreshEquipment,
   onItemDrop, tryAddItem, dropHeldOne, dropHeldStack,
-  consumeArrow,
+  consumeArrow, getHeldItemId, getOffhandItemId,
 } from './player/gui/inventory';
 import { Equipment } from './player/gui/equipment';
 import { loadItems, getItem } from './player/gui/items';
@@ -307,7 +307,7 @@ document.addEventListener('mousedown', (e) => {
   }
   if (!isPointerLocked) return;
   // Bow: start charging — reset pitch to a slight upward default each draw
-  if (e.button === 0 && getItem(currentMainhand)?.animation?.type === 'bow') {
+  if (e.button === 0 && !weaponAnimator.isEquipping() && getItem(currentMainhand)?.animation?.type === 'bow') {
     bowCharging = true;
     bowAimPitch = 0.12;
   }
@@ -493,6 +493,9 @@ function animate(time) {
   let maxSpeed = BASE_MAX_SPEED;
   if (sprinting) maxSpeed *= SPRINT_MULTIPLIER;
   else if (sneaking) maxSpeed *= SNEAK_MULTIPLIER;
+
+  maxSpeed *= getItem(getHeldItemId())?.speedModifier ?? 1;
+  maxSpeed *= getItem(getOffhandItemId())?.speedModifier ?? 1;
 
   const accel   = onGround ? ACCEL : AIR_ACCEL;
   const friction = onGround ? FRICTION : AIR_FRICTION;

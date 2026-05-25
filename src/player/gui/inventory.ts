@@ -1,5 +1,5 @@
 import './inventory.css';
-import { getItemImage, getItem, getItemSlot, getMaxStack, type SlotType } from './items';
+import { getItemImage, getItem, getItemSlot, getMaxStack } from './items';
 import { armorEquipIndex } from './equipment';
 
 function buildTooltipEl(): HTMLElement {
@@ -98,6 +98,7 @@ function showTooltip(slotIndex: number | null) {
 const SLOT_BG = '/gui/inventory/inventorySlotBG.svg';
 const SLOT_SELECTED_BG = '/gui/inventory/inventorySlotSelectedBG.svg';
 const INVENTORY_BG = '/gui/inventory/inventoryBG.svg';
+const SETTINGS_BG  = '/gui/inventory/settingsBG.svg';
 const HOTBAR_BG = '/gui/inventory/hotbar.svg';
 const CURSOR_DEFAULT = '/gui/inventory/cursor.svg';
 
@@ -127,6 +128,109 @@ const MAX_HP = 10;
 const TICK_COUNT = 10;
 
 export interface Stack { id: string; count: number; }
+
+// ─── Game Settings ────────────────────────────────────────────────────────────
+
+export interface GameSettings {
+  mouseSensitivity: number;
+  bowAimSensitivity: number;
+  fov: number;
+}
+
+export const gameSettings: GameSettings = {
+  mouseSensitivity: 0.01,
+  bowAimSensitivity: 0.003,
+  fov: 75,
+};
+
+const SETTINGS_DEFAULTS: GameSettings = {
+  mouseSensitivity: 0.01,
+  bowAimSensitivity: 0.003,
+  fov: 75,
+};
+
+function loadSettings() {
+  try {
+    const saved = localStorage.getItem('geode_settings');
+    if (saved) Object.assign(gameSettings, JSON.parse(saved));
+  } catch {}
+}
+
+function saveSettings() {
+  localStorage.setItem('geode_settings', JSON.stringify(gameSettings));
+}
+
+interface SettingRow {
+  key: keyof GameSettings;
+  label: string;
+  step: number;
+  min: number;
+  max: number;
+  fmt: (v: number) => string;
+}
+
+interface SettingSection {
+  section: string;
+  rows: SettingRow[];
+}
+
+const SETTINGS_DEFS: SettingSection[] = [
+  {
+    section: 'Controls',
+    rows: [
+      { key: 'mouseSensitivity',  label: 'Mouse Sensitivity', step: 0.001,  min: 0.001, max: 0.05, fmt: v => v.toFixed(3) },
+      { key: 'bowAimSensitivity', label: 'Bow Sensitivity',   step: 0.0005, min: 0.0005, max: 0.01, fmt: v => v.toFixed(4) },
+    ],
+  },
+  {
+    section: 'Camera',
+    rows: [
+      { key: 'fov', label: 'Field of View', step: 1, min: 50, max: 110, fmt: v => `${v}°` },
+    ],
+  },
+];
+
+function adjustSetting(key: keyof GameSettings, direction: 1 | -1) {
+  const def = SETTINGS_DEFS.flatMap(s => s.rows).find(r => r.key === key);
+  if (!def) return;
+  const cur = gameSettings[key] as number;
+  const next = Math.max(def.min, Math.min(def.max, +(cur + direction * def.step).toFixed(10)));
+  (gameSettings as unknown as Record<string, number>)[key] = next;
+  saveSettings();
+  const valEl = document.querySelector<HTMLElement>(`[data-setting-val="${key}"]`);
+  if (valEl) valEl.textContent = def.fmt(next);
+}
+
+function resetAllSettings() {
+  Object.assign(gameSettings, SETTINGS_DEFAULTS);
+  saveSettings();
+  for (const { rows } of SETTINGS_DEFS) {
+    for (const def of rows) {
+      const valEl = document.querySelector<HTMLElement>(`[data-setting-val="${def.key}"]`);
+      if (valEl) valEl.textContent = def.fmt(gameSettings[def.key] as number);
+    }
+  }
+}
+
+// ─── Tab System ───────────────────────────────────────────────────────────────
+
+type InventoryTab = 'inventory' | 'character' | 'chat' | 'settings';
+
+function switchTab(tab: InventoryTab) {
+  const panel = document.querySelector<HTMLElement>('.inventory-panel');
+  if (panel) {
+    panel.style.backgroundImage = `url('${tab === 'inventory' ? INVENTORY_BG : SETTINGS_BG}')`;
+  }
+  document.querySelectorAll<HTMLElement>('.inv-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === tab);
+  });
+  document.querySelectorAll<HTMLElement>('.inv-tab-pane').forEach(p => {
+    p.classList.toggle('hidden', p.id !== `tab-${tab}`);
+  });
+  showTooltip(null);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function ghostCopiesFor(count: number): number {
   if (count <= 1) return 0;
@@ -328,6 +432,31 @@ function cursorIsOutsidePanel(): boolean {
 }
 
 export function handleInventoryMouseDown(button: number = 0) {
+  const hoveredEl = document.elementFromPoint(fakeCursorX, fakeCursorY) as HTMLElement | null;
+
+  if (button === 0) {
+    // Tab switching
+    const tabBtn = hoveredEl?.closest<HTMLElement>('.inv-tab');
+    if (tabBtn?.dataset.tab) {
+      switchTab(tabBtn.dataset.tab as InventoryTab);
+      return;
+    }
+
+    // Settings buttons
+    const settingsBtn = hoveredEl?.closest<HTMLElement>('.settings-btn');
+    if (settingsBtn) {
+      if (settingsBtn.classList.contains('settings-reset')) {
+        resetAllSettings();
+      } else {
+        const key = settingsBtn.dataset.settingKey as keyof GameSettings | undefined;
+        if (key) {
+          adjustSetting(key, settingsBtn.classList.contains('settings-dec') ? -1 : 1);
+        }
+      }
+      return;
+    }
+  }
+
   const slotIndex = getSlotUnderCursor();
 
   if (button === 0) {
@@ -407,7 +536,6 @@ function updateFakeCursor(dx: number, dy: number) {
   updateCursorSprite();
 
   const slotIndex = getSlotUnderCursor();
-
   showTooltip(slotIndex);
 
   if (slotIndex !== null && rightDragVisited && cursorStack && !rightDragVisited.has(slotIndex)) {
@@ -431,9 +559,16 @@ function updateCursorSprite() {
   const slotIndex = getSlotUnderCursor();
   if (slotIndex !== null && inventoryState[slotIndex]) {
     cursor.src = CURSOR_HOVER;
-  } else {
-    cursor.src = CURSOR_DEFAULT;
+    return;
   }
+
+  const el = document.elementFromPoint(fakeCursorX, fakeCursorY) as HTMLElement | null;
+  if (el?.closest('.inv-tab, .settings-btn')) {
+    cursor.src = CURSOR_HOVER;
+    return;
+  }
+
+  cursor.src = CURSOR_DEFAULT;
 }
 
 function updateCursorAttachment() {
@@ -675,6 +810,7 @@ export function getHealth() {
 }
 
 export function createInventory() {
+  loadSettings();
   buildHotbarBar();
   buildTooltipEl();
 
@@ -686,14 +822,42 @@ export function createInventory() {
   panel.className = 'inventory-panel';
   panel.style.backgroundImage = `url('${INVENTORY_BG}')`;
 
+  // ── Tab bar ───────────────────────────────────────────────────────────────
+  const tabBar = document.createElement('div');
+  tabBar.className = 'inv-tab-bar';
+
+  const tabDefs: { id: InventoryTab; label: string }[] = [
+    { id: 'inventory', label: 'Items' },
+    { id: 'character', label: 'Character' },
+    { id: 'chat',      label: 'Chat' },
+    { id: 'settings',  label: 'Settings' },
+  ];
+  for (const { id, label } of tabDefs) {
+    const btn = document.createElement('div');
+    btn.className = 'inv-tab' + (id === 'inventory' ? ' active' : '');
+    btn.dataset.tab = id;
+    btn.textContent = label;
+    tabBar.appendChild(btn);
+  }
+  panel.appendChild(tabBar);
+
+  // ── Inventory pane ────────────────────────────────────────────────────────
+  const inventoryPane = document.createElement('div');
+  inventoryPane.className = 'inv-tab-pane';
+  inventoryPane.id = 'tab-inventory';
+
+  const equipment = document.createElement('div');
+  equipment.className = 'equipment';
+  equipment.appendChild(makeSlot(HELMET_SLOT));
+  equipment.appendChild(makeSlot(CHESTPLATE_SLOT));
+  equipment.appendChild(makeSlot(OFFHAND_SLOT));
+  inventoryPane.appendChild(equipment);
+
   const characterPanel = document.createElement('div');
   characterPanel.className = 'character-panel';
-
   const modelPreview = document.createElement('div');
   modelPreview.className = 'model-preview';
   modelPreview.id = 'character-preview';
-  modelPreview.textContent = '3D model';
-
   const stats = document.createElement('div');
   stats.className = 'stats';
   stats.innerHTML = `
@@ -701,37 +865,109 @@ export function createInventory() {
     <div>Speed: 50</div>
     <div>Protection: 20</div>
   `;
-
   characterPanel.appendChild(modelPreview);
   characterPanel.appendChild(stats);
-
-  const equipment = document.createElement('div');
-  equipment.className = 'equipment';
-  equipment.appendChild(makeSlot(HELMET_SLOT));
-  equipment.appendChild(makeSlot(CHESTPLATE_SLOT));
-  equipment.appendChild(makeSlot(OFFHAND_SLOT));
+  inventoryPane.appendChild(characterPanel);
 
   const grid = document.createElement('div');
   grid.className = 'inventory-grid';
   for (let i = 0; i < GRID_SLOTS; i++) {
     grid.appendChild(makeSlot(HOTBAR_SIZE + i));
   }
+  inventoryPane.appendChild(grid);
 
   const overlayHotbar = document.createElement('div');
   overlayHotbar.className = 'inventory-hotbar-row';
   for (let i = 0; i < HOTBAR_SIZE; i++) {
     overlayHotbar.appendChild(makeSlot(i));
   }
+  inventoryPane.appendChild(overlayHotbar);
 
+  panel.appendChild(inventoryPane);
+
+  // ── Settings pane ─────────────────────────────────────────────────────────
+  const settingsPane = document.createElement('div');
+  settingsPane.className = 'inv-tab-pane hidden';
+  settingsPane.id = 'tab-settings';
+
+  const settingsInner = document.createElement('div');
+  settingsInner.className = 'settings-inner';
+
+  for (const { section, rows } of SETTINGS_DEFS) {
+    const sectionEl = document.createElement('div');
+    sectionEl.className = 'settings-section';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'settings-section-title';
+    titleEl.textContent = section;
+    sectionEl.appendChild(titleEl);
+
+    for (const def of rows) {
+      const row = document.createElement('div');
+      row.className = 'settings-row';
+
+      const labelEl = document.createElement('span');
+      labelEl.className = 'settings-label';
+      labelEl.textContent = def.label;
+
+      const ctrl = document.createElement('div');
+      ctrl.className = 'settings-ctrl';
+
+      const decBtn = document.createElement('div');
+      decBtn.className = 'settings-btn settings-dec';
+      decBtn.dataset.settingKey = def.key;
+      decBtn.textContent = '−';
+
+      const valEl = document.createElement('span');
+      valEl.className = 'settings-val';
+      valEl.dataset.settingVal = def.key;
+      valEl.textContent = def.fmt(gameSettings[def.key] as number);
+
+      const incBtn = document.createElement('div');
+      incBtn.className = 'settings-btn settings-inc';
+      incBtn.dataset.settingKey = def.key;
+      incBtn.textContent = '+';
+
+      ctrl.appendChild(decBtn);
+      ctrl.appendChild(valEl);
+      ctrl.appendChild(incBtn);
+
+      row.appendChild(labelEl);
+      row.appendChild(ctrl);
+      sectionEl.appendChild(row);
+    }
+
+    settingsInner.appendChild(sectionEl);
+  }
+
+  const resetBtn = document.createElement('div');
+  resetBtn.className = 'settings-btn settings-reset';
+  resetBtn.textContent = 'Reset Defaults';
+  settingsInner.appendChild(resetBtn);
+
+  settingsPane.appendChild(settingsInner);
+  panel.appendChild(settingsPane);
+
+  // ── Coming-soon panes ─────────────────────────────────────────────────────
+  for (const { id, label } of [
+    { id: 'tab-character', label: 'Character' },
+    { id: 'tab-chat',      label: 'Chat' },
+  ]) {
+    const pane = document.createElement('div');
+    pane.className = 'inv-tab-pane hidden';
+    pane.id = id;
+    const msg = document.createElement('div');
+    msg.className = 'coming-soon';
+    msg.innerHTML = `<div class="coming-soon-title">${label}</div><div class="coming-soon-sub">Coming Soon</div>`;
+    pane.appendChild(msg);
+    panel.appendChild(pane);
+  }
+
+  // ── Cursor ────────────────────────────────────────────────────────────────
   const cursor = document.createElement('img');
   cursor.id = 'fake-cursor';
   cursor.src = CURSOR_DEFAULT;
-  document.body.appendChild(cursor);
 
-  panel.appendChild(equipment);
-  panel.appendChild(characterPanel);
-  panel.appendChild(grid);
-  panel.appendChild(overlayHotbar);
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
   document.body.appendChild(cursor);
