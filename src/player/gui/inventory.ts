@@ -637,6 +637,42 @@ export function dropHeldStack() {
   fireHotbarSelect();
 }
 
+/** Remove one of `itemId` from the inventory, preferring mainhand then offhand then grid. */
+export function consumeItemById(itemId: string): boolean {
+  // Check mainhand first
+  if (selectedHotbarIndex !== -1) {
+    const s = inventoryState[selectedHotbarIndex];
+    if (s && s.id === itemId) {
+      s.count -= 1;
+      if (s.count <= 0) inventoryState[selectedHotbarIndex] = null;
+      renderInventory();
+      fireEquipChange();
+      return true;
+    }
+  }
+  // Check offhand
+  const off = inventoryState[OFFHAND_SLOT];
+  if (off && off.id === itemId) {
+    off.count -= 1;
+    if (off.count <= 0) inventoryState[OFFHAND_SLOT] = null;
+    renderInventory();
+    fireEquipChange();
+    return true;
+  }
+  // Check rest of inventory
+  for (let i = 0; i < TOTAL_SLOTS; i++) {
+    const s = inventoryState[i];
+    if (s && s.id === itemId) {
+      s.count -= 1;
+      if (s.count <= 0) inventoryState[i] = null;
+      renderInventory();
+      fireEquipChange();
+      return true;
+    }
+  }
+  return false;
+}
+
 export function consumeArrow(): boolean {
   const offhand = inventoryState[OFFHAND_SLOT];
   if (offhand && offhand.id === 'arrow') {

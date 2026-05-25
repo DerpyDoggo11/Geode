@@ -1,3 +1,44 @@
+/* ── Mining progress bar ───────────────────────────────────────────────────── */
+
+#mining-progress {
+  position: fixed;
+  bottom: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 140px;
+  height: 7px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 2px;
+  display: none;
+  z-index: 15;
+  overflow: hidden;
+}
+
+#mining-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #9aa0a6, #c8cdd2);
+  border-radius: 2px;
+  transition: width 0.04s linear;
+}
+
+/* ── Block placement highlight ─────────────────────────────────────────────── */
+
+#block-place-indicator {
+  position: fixed;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.6);
+  font-family: monospace;
+  font-size: 11px;
+  pointer-events: none;
+  z-index: 15;
+  display: none;
+  letter-spacing: 0.06em;
+}
+
 #hotbar-wrapper {
   position: fixed;
   bottom: clamp(8px, 2vh, 24px);

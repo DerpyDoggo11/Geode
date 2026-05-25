@@ -55,6 +55,7 @@ export class Equipment {
 
     const def = getItem(itemId);
     if (!def) return;
+    if (!def.model) return; // block items and others with no model show nothing in hand
 
     let model: THREE.Object3D;
     try {
@@ -111,6 +112,7 @@ export function armorEquipIndex(slot: SlotType): number | null {
     case 'helmet': return 100;
     case 'chestplate': return 101;
     case 'offhand': return 102;
+    case 'block': return 102; // block items can be placed in the offhand slot
     default: return null;
   }
 }

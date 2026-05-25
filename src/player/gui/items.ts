@@ -1,6 +1,13 @@
 import itemsData from './items.json';
 
-export type SlotType = 'weapon' | 'offhand' | 'helmet' | 'chestplate';
+export type SlotType = 'weapon' | 'offhand' | 'helmet' | 'chestplate' | 'block';
+
+export interface BlockConfig {
+  /** World-space side length of the placed block (default 1.2). */
+  size?: number;
+  /** Seconds to mine this block with miningSpeed=1 (bare hands equivalent). */
+  hardness?: number;
+}
 
 
 
@@ -52,6 +59,8 @@ export interface ItemDef {
   slot: SlotType;
   image: string;
   model: string;
+  /** Block-placement config. Present only on placeable block items. */
+  block?: BlockConfig;
   // STEP 1: new optional fields. Old code paths that don't read them keep working.
   maxStack?: number;
   dropLightColor?: string;
@@ -100,4 +109,8 @@ export function getDropLightColor(id: string | null): string {
 
 export function allItems(): ItemDef[] {
   return Object.values(registry);
+}
+
+export function isBlockItem(id: string | null): boolean {
+  return !!(getItem(id)?.block);
 }

@@ -18,6 +18,7 @@ async function loadDropModel(path: string): Promise<THREE.Object3D> {
 export async function preloadAllDropModels(): Promise<void> {
   const items = allItems();
   await Promise.all(items.map(async (item) => {
+    if (!item.model) return; // block items and others with no GLB are skipped
     try {
       await loadDropModel(item.model);
     } catch {
@@ -133,14 +134,23 @@ export class WorldDrops {
     const group = new THREE.Group();
 
     let model: THREE.Object3D;
-    try {
-      model = await loadDropModel(def.model);
-    } catch (err) {
-      console.warn(`Failed to load drop model for ${itemId}:`, err);
+    if (!def.model) {
+      // Block items and others without a GLB use a small colored cube as drop visual.
+      const col = new THREE.Color(getDropLightColor(itemId));
       model = new THREE.Mesh(
-        new THREE.BoxGeometry(0.3, 0.3, 0.3),
-        new THREE.MeshStandardMaterial({ color: 0xff00ff }),
+        new THREE.BoxGeometry(0.28, 0.28, 0.28),
+        new THREE.MeshStandardMaterial({ color: col }),
       );
+    } else {
+      try {
+        model = await loadDropModel(def.model);
+      } catch (err) {
+        console.warn(`Failed to load drop model for ${itemId}:`, err);
+        model = new THREE.Mesh(
+          new THREE.BoxGeometry(0.3, 0.3, 0.3),
+          new THREE.MeshStandardMaterial({ color: 0xff00ff }),
+        );
+      }
     }
     model.scale.setScalar(0.4);
     group.add(model);

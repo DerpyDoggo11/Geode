@@ -7,10 +7,10 @@ import {
   handleInventoryMouseMove, handleInventoryMouseUp, handleInventoryMouseDown,
   selectHotbar, toggleOffhand, onEquipChange, refreshEquipment,
   onItemDrop, tryAddItem, dropHeldOne, dropHeldStack,
-  consumeArrow, getHeldItemId, getOffhandItemId,
+  consumeArrow, consumeItemById, getHeldItemId, getOffhandItemId,
 } from './player/gui/inventory';
 import { Equipment } from './player/gui/equipment';
-import { loadItems, getItem } from './player/gui/items';
+import { loadItems, getItem, isBlockItem } from './player/gui/items';
 import { WorldDrops, preloadAllDropModels } from './player/gui/worldDrops';
 import { WeaponAnimator } from './player/weaponAnim';
 
@@ -174,48 +174,53 @@ onItemDrop(({ itemId, count }) => {
 
 // ─── Bow / projectile system ──────────────────────────────────────────────────
 
-const BOW_GRAVITY    = -22;    // m/s² applied to arrows (gentler arc than player gravity)
-const BOW_MIN_POWER  = 8;      // m/s at zero charge
-const BOW_MAX_POWER  = 28;     // m/s at full charge
-const BOW_AIM_SENS   = 0.003;  // radians per pixel of mouse Y movement
-const TRAJ_COUNT     = 28;     // number of preview dots
-const TRAJ_STEP      = 0.07;   // simulated seconds between each dot
+const BOW_GRAVITY    = -22;   // m/s² applied to arrows
+const BOW_MIN_POWER  = 8;     // m/s at zero charge
+const BOW_MAX_POWER  = 28;    // m/s at full charge
+const BOW_AIM_SENS   = 0.003; // radians per pixel of mouse Y movement
+const BOW_CHARGE_MAX = 0.8;   // seconds for full charge (green on color ramp)
 
-let bowCharging  = false;
-let bowAimPitch  = 0.12; // radians; positive = upward; reset each new charge
+let bowCharging = false;
+let bowAimPitch = 0.12; // radians; positive = upward
+let bowHoldTime = 0;    // total seconds bow has been held this charge
 
-// Trajectory preview: a Points object whose positions are re-written every frame
-const trajPositions = new Float32Array(TRAJ_COUNT * 3);
-const trajGeoAttr   = new THREE.BufferAttribute(trajPositions, 3);
-trajGeoAttr.usage   = THREE.DynamicDrawUsage;
-const trajGeo       = new THREE.BufferGeometry();
-trajGeo.setAttribute('position', trajGeoAttr);
-const trajDots      = new THREE.Points(trajGeo, new THREE.PointsMaterial({
-  color: 0xffeebb,
-  size: 0.12,
+// ── Aim indicator: flat 2D rectangle lying in world space ────────────────────
+const AIM_LINE_LENGTH = 4.0;
+const AIM_LINE_WIDTH  = 0.09;
+
+// PlaneGeometry in XY plane; height axis (+Y) will be oriented toward aim direction at runtime
+const _aimGeo = new THREE.PlaneGeometry(AIM_LINE_WIDTH, AIM_LINE_LENGTH);
+const _aimMat4 = new THREE.Matrix4(); // reused each frame for quaternion construction
+const aimLineMat = new THREE.MeshBasicMaterial({
+  color: 0xff3300,
   transparent: true,
-  opacity: 0.78,
-  sizeAttenuation: true,
-}));
-trajDots.visible = false;
-scene.add(trajDots);
+  opacity: 0.88,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+});
+const aimLineMesh = new THREE.Mesh(_aimGeo, aimLineMat);
+aimLineMesh.visible = false;
+aimLineMesh.renderOrder = 2;
+scene.add(aimLineMesh);
 
-function updateTrajectoryDots(origin: THREE.Vector3, yaw: number, pitch: number, power: number) {
-  let px = origin.x, py = origin.y, pz = origin.z;
-  let vx = Math.cos(pitch) * -Math.sin(yaw) * power;
-  let vy = Math.sin(pitch) * power;
-  let vz = Math.cos(pitch) * -Math.cos(yaw) * power;
-  for (let i = 0; i < TRAJ_COUNT; i++) {
-    trajPositions[i * 3 + 0] = px;
-    trajPositions[i * 3 + 1] = py;
-    trajPositions[i * 3 + 2] = pz;
-    px += vx * TRAJ_STEP;
-    py += vy * TRAJ_STEP;
-    pz += vz * TRAJ_STEP;
-    vy += BOW_GRAVITY * TRAJ_STEP;
+// Color ramp: red→yellow→green (optimal at full charge)→yellow→red (overcharged)
+function getChargeColor(holdTime: number, chargeMax: number): THREE.Color {
+  const t = holdTime / chargeMax; // 0=uncharged, 1=full, >1=overcharged
+  if (t <= 0.5) {
+    return new THREE.Color(1, t * 2, 0);             // red → yellow
+  } else if (t <= 1.0) {
+    return new THREE.Color(2 - t * 2, 1, 0);         // yellow → green
+  } else if (t <= 1.5) {
+    return new THREE.Color((t - 1) * 2, 1, 0);       // green → yellow
+  } else {
+    return new THREE.Color(1, Math.max(0, 1 - (t - 1.5) * 2), 0); // yellow → red
   }
-  trajGeoAttr.needsUpdate = true;
 }
+
+// Brief muzzle flash when an arrow fires
+const bowFlashLight = new THREE.PointLight(0xffcc44, 0, 7, 2);
+scene.add(bowFlashLight);
+let bowFlashAge = Infinity;
 
 // Arrow entities in flight
 interface ArrowEntity {
@@ -224,17 +229,18 @@ interface ArrowEntity {
   age: number;
   maxAge: number;
   stuck: boolean;
+  pickupDelay: number; // seconds before player can pick up a stuck arrow
 }
 const activeArrows: ArrowEntity[] = [];
 const arrowRaycaster = new THREE.Raycaster();
 const arrowUpVec = new THREE.Vector3(0, 1, 0);
 
-// Pre-built geometry/material shared by all arrow projectiles
-const arrowGeo = new THREE.CylinderGeometry(0.018, 0.022, 0.52, 5);
-const arrowMat = new THREE.MeshStandardMaterial({ color: 0xb08040 });
+// Tapered arrow: small tip (radiusTop), wide feathers (radiusBottom), clearly visible
+const arrowGeo = new THREE.CylinderGeometry(0.06, 0.18, 1.5, 6);
+const arrowMat = new THREE.MeshStandardMaterial({ color: 0x7a4a1e });
 
 function fireArrow(yaw: number, pitch: number, chargeNorm: number) {
-  if (!consumeArrow()) return; // no arrows in inventory → silent fail
+  if (!consumeArrow()) return;
 
   const power = BOW_MIN_POWER + (BOW_MAX_POWER - BOW_MIN_POWER) * chargeNorm;
   const dir = new THREE.Vector3(
@@ -245,20 +251,305 @@ function fireArrow(yaw: number, pitch: number, chargeNorm: number) {
 
   const origin = cube.position.clone();
   origin.y += 0.45;
-  origin.addScaledVector(dir, 0.6); // start slightly in front of the player
+  origin.addScaledVector(dir, 0.6);
 
-  const mesh = new THREE.Mesh(arrowGeo, arrowMat);
+  const mesh = new THREE.Mesh(arrowGeo, arrowMat.clone());
   mesh.position.copy(origin);
   mesh.quaternion.setFromUnitVectors(arrowUpVec, dir);
+  mesh.castShadow = true;
   scene.add(mesh);
+
+  // Muzzle flash
+  bowFlashLight.position.copy(origin);
+  bowFlashAge = 0;
 
   activeArrows.push({
     mesh,
     vel: dir.clone().multiplyScalar(power),
     age: 0,
-    maxAge: 7,
+    maxAge: 8,
     stuck: false,
+    pickupDelay: 0,
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Block placement / mining system ─────────────────────────────────────────
+
+interface PlacedBlock {
+  id: string;
+  mesh: THREE.Mesh;
+  skirt: THREE.Mesh | null;
+  size: number;
+}
+const placedBlocks: PlacedBlock[] = [];
+
+// Terrain meshes used for surface detection
+const terrainMeshes: THREE.Mesh[] = map.mapType === 'island'
+  ? map.islands
+  : [map.terrain as THREE.Mesh];
+
+// Collidables used to rebuild the BVH when blocks are added/removed
+let blockCollidables: THREE.Mesh[] = [];
+
+function rebuildBlockCollider() {
+  const allCollidables = [...map.collidables, ...blockCollidables];
+  const gen = new StaticGeometryGenerator(allCollidables);
+  gen.attributes = ['position'];
+  const merged = gen.generate();
+  merged.boundsTree = new MeshBVH(merged);
+  collider.geometry.dispose();
+  collider.geometry = merged;
+}
+
+// Shared toon gradient for block materials (3-step: dark / mid / bright)
+function makeBlockGradient(): THREE.DataTexture {
+  const data = new Uint8Array([64, 140, 255]);
+  const tex = new THREE.DataTexture(data, 3, 1, THREE.RedFormat);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+const blockGradient = makeBlockGradient();
+
+// ─── Face-culling helpers for seamless block merging ─────────────────────────
+type FaceDir = 'px'|'nx'|'py'|'ny'|'pz'|'nz';
+const FACE_OPP: Record<FaceDir, FaceDir> = {
+  px:'nx', nx:'px', py:'ny', ny:'py', pz:'nz', nz:'pz'
+};
+void FACE_OPP; // referenced only for type safety
+
+/** Box geometry with specified faces omitted — used so adjacent blocks merge seamlessly. */
+function buildBlockGeo(size: number, skip: Set<FaceDir>): THREE.BufferGeometry {
+  const h = size / 2;
+  const pos: number[] = [], nor: number[] = [];
+  const face = (v: number[][], n: [number, number, number]) => {
+    pos.push(...v[0], ...v[1], ...v[2],  ...v[0], ...v[2], ...v[3]);
+    for (let i = 0; i < 6; i++) nor.push(...n);
+  };
+  if (!skip.has('px')) face([[h,-h,-h],[h,h,-h],[h,h,h],[h,-h,h]], [1,0,0]);
+  if (!skip.has('nx')) face([[-h,-h,h],[-h,h,h],[-h,h,-h],[-h,-h,-h]], [-1,0,0]);
+  if (!skip.has('py')) face([[-h,h,-h],[-h,h,h],[h,h,h],[h,h,-h]], [0,1,0]);
+  if (!skip.has('ny')) face([[-h,-h,h],[-h,-h,-h],[h,-h,-h],[h,-h,h]], [0,-1,0]);
+  if (!skip.has('pz')) face([[-h,-h,h],[h,-h,h],[h,h,h],[-h,h,h]], [0,0,1]);
+  if (!skip.has('nz')) face([[h,-h,-h],[-h,-h,-h],[-h,h,-h],[h,h,-h]], [0,0,-1]);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal',   new THREE.Float32BufferAttribute(nor, 3));
+  return g;
+}
+
+/** Which faces of a hypothetical block at `center` are covered by existing placed blocks. */
+function getHiddenFaces(center: THREE.Vector3, size: number): Set<FaceDir> {
+  const hidden = new Set<FaceDir>();
+  const TOL = size * 0.18;
+  for (const b of placedBlocks) {
+    const dx = b.mesh.position.x - center.x;
+    const dy = b.mesh.position.y - center.y;
+    const dz = b.mesh.position.z - center.z;
+    const ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
+    if (Math.abs(ax - size) < TOL && ay < TOL && az < TOL) hidden.add(dx > 0 ? 'px' : 'nx');
+    else if (Math.abs(ay - size) < TOL && ax < TOL && az < TOL) hidden.add(dy > 0 ? 'py' : 'ny');
+    else if (Math.abs(az - size) < TOL && ax < TOL && ay < TOL) hidden.add(dz > 0 ? 'pz' : 'nz');
+  }
+  return hidden;
+}
+
+/** Rebuild the mesh geometry of an existing block to reflect current neighbors. */
+function refreshBlockGeometry(block: PlacedBlock): void {
+  const geo = buildBlockGeo(block.size, getHiddenFaces(block.mesh.position, block.size));
+  const old = block.mesh.geometry;
+  block.mesh.geometry = geo;
+  const outline = block.mesh.children[0] as THREE.Mesh | undefined;
+  if (outline) outline.geometry = geo;
+  old.dispose();
+}
+
+/** All placed blocks whose center is exactly one block-size away from `center`. */
+function getAdjacentBlocks(center: THREE.Vector3, size: number): PlacedBlock[] {
+  const TOL = size * 0.18;
+  return placedBlocks.filter(b => {
+    const ax = Math.abs(b.mesh.position.x - center.x);
+    const ay = Math.abs(b.mesh.position.y - center.y);
+    const az = Math.abs(b.mesh.position.z - center.z);
+    return (
+      (Math.abs(ax - size) < TOL && ay < TOL && az < TOL) ||
+      (Math.abs(ay - size) < TOL && ax < TOL && az < TOL) ||
+      (Math.abs(az - size) < TOL && ax < TOL && ay < TOL)
+    );
+  });
+}
+
+// Ghost preview block (semi-transparent)
+const _previewBoxGeo = new THREE.BoxGeometry(1, 1, 1);
+const blockPreviewMesh = new THREE.Mesh(
+  _previewBoxGeo,
+  new THREE.MeshStandardMaterial({
+    color: 0x888780,
+    transparent: true,
+    opacity: 0.45,
+    depthWrite: false,
+  }),
+);
+blockPreviewMesh.visible = false;
+scene.add(blockPreviewMesh);
+// Wireframe overlay on the preview
+const _previewEdges = new THREE.EdgesGeometry(_previewBoxGeo);
+blockPreviewMesh.add(new THREE.LineSegments(
+  _previewEdges,
+  new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 }),
+));
+
+const blockRaycaster = new THREE.Raycaster();
+const _blockRayDir = new THREE.Vector3();
+let blockPlacePos: THREE.Vector3 | null = null;    // raw surface hit point
+let blockPlaceOnTerrain = false;                   // true when placing on terrain (skirt needed)
+
+// Mining state
+let miningBlock: PlacedBlock | null = null;
+let miningProgress = 0; // 0..1 fraction of totalMineTime elapsed
+let miningTotalTime = 1; // seconds to fully mine current block
+let isMouseDownLeft = false;
+
+// ─── Block system helpers ─────────────────────────────────────────────────────
+
+/**
+ * Build the gradient skirt mesh that visually connects the block base to the terrain.
+ * Inner vertices (at hitPoint.y) use block color; outer vertices (slightly below/wider)
+ * use an earth tone so the block appears to root into the ground.
+ */
+function createSkirtMesh(hitPoint: THREE.Vector3, size: number): THREE.Mesh {
+  const half  = size / 2;
+  const flare = size * 0.22;   // outward spread beyond block edge
+  const depth = size * 0.11;   // downward embed below surface
+
+  const baseY  = hitPoint.y;
+  const outerY = hitPoint.y - depth;
+
+  // Inner square corners (block base perimeter at terrain level)
+  const inn: [number, number, number][] = [
+    [hitPoint.x - half,         baseY,  hitPoint.z - half        ],
+    [hitPoint.x + half,         baseY,  hitPoint.z - half        ],
+    [hitPoint.x + half,         baseY,  hitPoint.z + half        ],
+    [hitPoint.x - half,         baseY,  hitPoint.z + half        ],
+  ];
+  // Outer square corners (flared out + slightly below)
+  const out: [number, number, number][] = [
+    [hitPoint.x - half - flare, outerY, hitPoint.z - half - flare],
+    [hitPoint.x + half + flare, outerY, hitPoint.z - half - flare],
+    [hitPoint.x + half + flare, outerY, hitPoint.z + half + flare],
+    [hitPoint.x - half - flare, outerY, hitPoint.z + half + flare],
+  ];
+
+  // Stone color (inner) → earth tone (outer)
+  const ci: [number, number, number] = [0.533, 0.533, 0.502]; // #888780
+  const co: [number, number, number] = [0.36,  0.32,  0.27 ]; // dark earth
+
+  const pos: number[] = [];
+  const col: number[] = [];
+
+  // 4 side trapezoidal panels
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    const [a, b, c, d] = [inn[i], inn[j], out[j], out[i]];
+    pos.push(...a, ...b, ...c,  ...a, ...c, ...d);
+    col.push(...ci, ...ci, ...co,  ...ci, ...co, ...co);
+  }
+
+  // Bottom cap (flat at outerY, fills the base so no hole shows underground)
+  pos.push(...out[0], ...out[1], ...out[2],  ...out[0], ...out[2], ...out[3]);
+  col.push(...co, ...co, ...co,  ...co, ...co, ...co);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color',    new THREE.Float32BufferAttribute(col, 3));
+  geo.computeVertexNormals();
+
+  const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function isPositionOccupied(centerPos: THREE.Vector3, blockSize: number): boolean {
+  const thresh = blockSize * 0.85;
+  for (const b of placedBlocks) {
+    if (b.mesh.position.distanceTo(centerPos) < thresh) return true;
+  }
+  return false;
+}
+
+function spawnPlacedBlock(id: string, hitPoint: THREE.Vector3, onTerrain: boolean): boolean {
+  const blockDef = getItem(id)?.block;
+  if (!blockDef) return false;
+  const size = blockDef.size ?? 3.0;
+  const centerPos = new THREE.Vector3(hitPoint.x, hitPoint.y + size / 2, hitPoint.z);
+
+  if (cube.position.distanceTo(centerPos) < SPHERE_RADIUS + size * 0.4) return false;
+  if (isPositionOccupied(centerPos, size)) return false;
+
+  // Geometry with hidden faces for seamless merging with existing neighbors
+  const hidden = getHiddenFaces(centerPos, size);
+  const geo = buildBlockGeo(size, hidden);
+  const mat = new THREE.MeshToonMaterial({ color: 0x888780, gradientMap: blockGradient });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(centerPos);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.userData['blockId'] = id;
+
+  const outlineMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide });
+  const outline = new THREE.Mesh(geo, outlineMat);
+  outline.scale.setScalar(1.03);
+  mesh.add(outline);
+
+  const skirt = onTerrain ? createSkirtMesh(hitPoint, size) : null;
+  if (skirt) scene.add(skirt);
+
+  scene.add(mesh);
+  placedBlocks.push({ id, mesh, skirt, size });
+  blockCollidables.push(mesh);
+
+  // Now that the new block is in placedBlocks, refresh all neighbors so their
+  // now-covered faces are removed too
+  for (const adj of getAdjacentBlocks(centerPos, size)) refreshBlockGeometry(adj);
+
+  rebuildBlockCollider();
+  return true;
+}
+
+function removeBlock(block: PlacedBlock) {
+  // Remove from arrays first so neighbors' getHiddenFaces won't find this block
+  const idx = placedBlocks.indexOf(block);
+  if (idx !== -1) placedBlocks.splice(idx, 1);
+  const ci = blockCollidables.indexOf(block.mesh);
+  if (ci !== -1) blockCollidables.splice(ci, 1);
+
+  // Restore exposed faces on neighbors now that this block is gone
+  for (const adj of getAdjacentBlocks(block.mesh.position, block.size)) {
+    refreshBlockGeometry(adj);
+  }
+
+  scene.remove(block.mesh);
+  block.mesh.geometry.dispose();
+  if (block.skirt) {
+    scene.remove(block.skirt);
+    block.skirt.geometry.dispose();
+  }
+  rebuildBlockCollider();
+}
+
+// ─── Mining & preview UI elements (created after createInventory) ─────────────
+let miningBarEl: HTMLElement | null = null;
+let miningFillEl: HTMLElement | null = null;
+
+function setMiningProgress(t: number | null) {
+  if (!miningBarEl || !miningFillEl) return;
+  if (t === null) { miningBarEl.style.display = 'none'; return; }
+  miningBarEl.style.display = 'block';
+  miningFillEl.style.width = `${Math.round(t * 100)}%`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -306,11 +597,30 @@ document.addEventListener('mousedown', (e) => {
     return;
   }
   if (!isPointerLocked) return;
-  // Bow: start charging — reset pitch to a slight upward default each draw
-  if (e.button === 0 && !weaponAnimator.isEquipping() && getItem(currentMainhand)?.animation?.type === 'bow') {
-    bowCharging = true;
-    bowAimPitch = 0.12;
+
+  if (e.button === 0) {
+    isMouseDownLeft = true;
+    // Bow: start charging — reset pitch to a slight upward default each draw
+    if (!weaponAnimator.isEquipping() && getItem(currentMainhand)?.animation?.type === 'bow') {
+      bowCharging = true;
+      bowHoldTime = 0;
+      bowAimPitch = 0.12;
+    }
   }
+
+  // Right-click: block placement from mainhand or offhand
+  if (e.button === 2) {
+    const mainId = getHeldItemId();
+    const offId = getOffhandItemId();
+    const blockId = isBlockItem(mainId) ? mainId : isBlockItem(offId) ? offId : null;
+    if (blockId && blockPlacePos) {
+      if (spawnPlacedBlock(blockId, blockPlacePos, blockPlaceOnTerrain)) {
+        consumeItemById(blockId);
+      }
+      return;
+    }
+  }
+
   weaponAnimator.onMouseDown(e.button);
 });
 
@@ -320,11 +630,16 @@ document.addEventListener('mouseup', (e) => {
     return;
   }
   if (!isPointerLocked) return;
-  // Bow: release → fire an arrow if we were charging
-  if (e.button === 0 && bowCharging) {
-    bowCharging = false;
-    trajDots.visible = false;
-    fireArrow(cameraYaw, bowAimPitch, weaponAnimator.getChargeNormalized());
+  if (e.button === 0) {
+    isMouseDownLeft = false;
+    miningBlock = null;
+    miningProgress = 0;
+    setMiningProgress(null);
+    if (bowCharging) {
+      bowCharging = false;
+      aimLineMesh.visible = false;
+      fireArrow(cameraYaw, bowAimPitch, weaponAnimator.getChargeNormalized());
+    }
   }
   weaponAnimator.onMouseUp(e.button);
 });
@@ -601,7 +916,9 @@ function animate(time) {
   const attackPose = weaponAnimator.update(dt);
   if (attackPose.active) {
     if (rightArm) {
-      rightArm.rotation.x = rightArmRestX + attackPose.rotX;
+      // When bow charging, tilt arm up/down with aim pitch
+      const pitchOffset = bowCharging ? -bowAimPitch : 0;
+      rightArm.rotation.x = rightArmRestX + attackPose.rotX + pitchOffset;
       rightArm.rotation.y = rightArmRestY + attackPose.rotY;
       rightArm.rotation.z = attackPose.rotZ;
     }
@@ -616,17 +933,42 @@ function animate(time) {
   if (rightEar) rightEar.rotation.x = Math.sin(walkPhase) * 0.2;
   if (leftEar)  leftEar.rotation.x  = -Math.cos(walkPhase) * 0.2;
 
+  // Bow charge color ramp + aim line
   if (bowCharging) {
-    trajDots.visible = true;
-    const charge = weaponAnimator.getChargeNormalized();
-    const power  = BOW_MIN_POWER + (BOW_MAX_POWER - BOW_MIN_POWER) * charge;
-    const origin = cube.position.clone();
-    origin.y += 0.45;
-    origin.x += Math.cos(bowAimPitch) * -Math.sin(cameraYaw) * 0.6;
-    origin.z += Math.cos(bowAimPitch) * -Math.cos(cameraYaw) * 0.6;
-    updateTrajectoryDots(origin, cameraYaw, bowAimPitch, power);
+    bowHoldTime += dt;
+    aimLineMat.color.copy(getChargeColor(bowHoldTime, BOW_CHARGE_MAX));
+
+    // Aim direction in world space (respects both yaw and vertical pitch)
+    const aimDir = new THREE.Vector3(
+      Math.cos(bowAimPitch) * -Math.sin(cameraYaw),
+      Math.sin(bowAimPitch),
+      Math.cos(bowAimPitch) * -Math.cos(cameraYaw),
+    );
+
+    // Originate line at the bow (right arm world position)
+    const bowOrigin = new THREE.Vector3();
+    if (rightArm) rightArm.getWorldPosition(bowOrigin);
+    else bowOrigin.set(cube.position.x, cube.position.y + 0.45, cube.position.z);
+
+    // Center the line half-length ahead of the bow
+    aimLineMesh.position.copy(bowOrigin).addScaledVector(aimDir, AIM_LINE_LENGTH * 0.5);
+
+    // Orient: local +Y (height axis of plane) → aimDir; local +X stays horizontal
+    const lx = new THREE.Vector3(-Math.cos(cameraYaw), 0, Math.sin(cameraYaw));
+    const lz = new THREE.Vector3().crossVectors(aimDir, lx).normalize();
+    _aimMat4.makeBasis(lx, aimDir, lz);
+    aimLineMesh.quaternion.setFromRotationMatrix(_aimMat4);
+
+    aimLineMesh.visible = true;
   } else {
-    trajDots.visible = false;
+    aimLineMesh.visible = false;
+  }
+
+  // Muzzle flash decay
+  if (bowFlashAge < Infinity) {
+    bowFlashAge += dt;
+    bowFlashLight.intensity = Math.max(0, 4 - bowFlashAge * 20);
+    if (bowFlashLight.intensity <= 0) { bowFlashAge = Infinity; }
   }
 
   for (let i = activeArrows.length - 1; i >= 0; i--) {
@@ -637,24 +979,40 @@ function animate(time) {
       activeArrows.splice(i, 1);
       continue;
     }
-    if (a.stuck) continue;
+    if (a.stuck) {
+      a.pickupDelay -= dt;
+      if (a.pickupDelay <= 0 && cube.position.distanceTo(a.mesh.position) < 2.5) {
+        const leftover = tryAddItem('arrow', 1);
+        if (leftover === 0) {
+          scene.remove(a.mesh);
+          activeArrows.splice(i, 1);
+          continue;
+        }
+      }
+      continue;
+    }
 
     a.vel.y += BOW_GRAVITY * dt;
     const speed = a.vel.length();
 
+    let hitSurface = false;
     if (speed > 0.05) {
       const velDir = a.vel.clone().normalize();
+      // Lookahead: full step distance plus generous margin so fast arrows never tunnel
+      arrowRaycaster.near = 0;
+      arrowRaycaster.far = speed * dt + 0.6;
       arrowRaycaster.set(a.mesh.position, velDir);
-      arrowRaycaster.far = speed * dt + 0.18;
       const hits = arrowRaycaster.intersectObject(collider, false);
-      if (hits.length > 0 && hits[0].distance <= arrowRaycaster.far) {
-        a.mesh.position.copy(hits[0].point);
+      if (hits.length > 0) {
+        a.mesh.position.copy(hits[0].point).addScaledVector(velDir, -0.325);
         a.vel.set(0, 0, 0);
         a.stuck = true;
-        a.maxAge = a.age + 6;
-        continue;
+        a.pickupDelay = 0.8;
+        a.maxAge = a.age + 30;
+        hitSurface = true;
       }
     }
+    if (hitSurface) continue;
 
     a.mesh.position.addScaledVector(a.vel, dt);
 
@@ -662,6 +1020,149 @@ function animate(time) {
       a.mesh.quaternion.setFromUnitVectors(arrowUpVec, a.vel.clone().normalize());
     }
   }
+
+  // ── Block preview & mining ──────────────────────────────────────────────────
+  {
+    const mainId = getHeldItemId();
+    const offId  = getOffhandItemId();
+    const heldBlockId = isBlockItem(mainId) ? mainId : isBlockItem(offId) ? offId : null;
+
+    // Block placement target: cast downward from in front of the player
+    const BLOCK_PLACE_DIST = 4.0;
+    const aheadX = cube.position.x + forwardX * BLOCK_PLACE_DIST;
+    const aheadZ = cube.position.z + forwardZ * BLOCK_PLACE_DIST;
+
+    // ── Placement preview ───────────────────────────────────────────────────
+    if (heldBlockId && !isInventoryOpen()) {
+      const blockDef = getItem(heldBlockId)!.block!;
+      const bSize = blockDef.size ?? 3.0;
+
+      // Cast straight down — hit terrain OR tops of placed blocks
+      _blockRayDir.set(0, -1, 0);
+      blockRaycaster.set(
+        new THREE.Vector3(aheadX, cube.position.y + 20, aheadZ),
+        _blockRayDir
+      );
+      blockRaycaster.far = 40;
+      const blockMeshSurfaces = placedBlocks.map(b => b.mesh);
+      const surfaceHits = blockRaycaster.intersectObjects(
+        [...terrainMeshes, ...blockMeshSurfaces], false
+      );
+
+      let previewCenter: THREE.Vector3 | null = null;
+      let hitPtForPlace: THREE.Vector3 | null = null;
+      let previewOnTerrain = false;
+
+      if (surfaceHits.length > 0) {
+        const hit = surfaceHits[0];
+        const hitPt = hit.point;
+        const centerPos = new THREE.Vector3(hitPt.x, hitPt.y + bSize / 2, hitPt.z);
+        if (!isPositionOccupied(centerPos, bSize) &&
+            cube.position.distanceTo(centerPos) >= SPHERE_RADIUS + bSize * 0.4) {
+          previewCenter = centerPos;
+          hitPtForPlace = hitPt.clone();
+          previewOnTerrain = terrainMeshes.includes(hit.object as THREE.Mesh);
+        }
+      } else {
+        // Void below — bridge: top of block flush with player foot level
+        const feetY = cube.position.y - SPHERE_RADIUS;
+        const centerPos = new THREE.Vector3(aheadX, feetY - bSize / 2, aheadZ);
+        if (!isPositionOccupied(centerPos, bSize) &&
+            cube.position.distanceTo(centerPos) >= SPHERE_RADIUS + bSize * 0.4) {
+          previewCenter = centerPos;
+          hitPtForPlace = new THREE.Vector3(aheadX, feetY - bSize, aheadZ);
+          previewOnTerrain = false;
+        }
+      }
+
+      if (previewCenter) {
+        // Build preview geometry with hidden faces so the merge is visible in preview too
+        const hidden = getHiddenFaces(previewCenter, bSize);
+        const previewGeo = buildBlockGeo(bSize, hidden);
+        blockPreviewMesh.geometry.dispose();
+        blockPreviewMesh.geometry = previewGeo;
+        const edgesChild = blockPreviewMesh.children[0] as THREE.LineSegments | undefined;
+        if (edgesChild) {
+          edgesChild.geometry.dispose();
+          edgesChild.geometry = new THREE.EdgesGeometry(previewGeo);
+        }
+        blockPreviewMesh.scale.set(1, 1, 1);
+        blockPreviewMesh.position.copy(previewCenter);
+        blockPreviewMesh.visible = true;
+        (blockPreviewMesh.material as THREE.MeshStandardMaterial).opacity = 0.45;
+        blockPlacePos = hitPtForPlace;
+        blockPlaceOnTerrain = previewOnTerrain;
+      } else {
+        blockPreviewMesh.visible = false;
+        blockPlacePos = null;
+      }
+    } else {
+      blockPreviewMesh.visible = false;
+      blockPlacePos = null;
+    }
+
+    // ── Mining ──────────────────────────────────────────────────────────────
+    const miningSpeed = (getItem(mainId)?.stats?.['miningSpeed'] as number | undefined) ?? 0;
+
+    if (isMouseDownLeft && miningSpeed > 0 && !isInventoryOpen()) {
+      // Forward ray from player chest toward facing direction
+      _blockRayDir.set(forwardX, 0, forwardZ);
+      blockRaycaster.set(
+        new THREE.Vector3(cube.position.x, cube.position.y + 0.3, cube.position.z),
+        _blockRayDir
+      );
+      blockRaycaster.far = 5;
+
+      const blockMeshes = placedBlocks.map(b => b.mesh);
+      const blockHits = blockRaycaster.intersectObjects(blockMeshes, false);
+
+      if (blockHits.length > 0) {
+        const hitMesh = blockHits[0].object as THREE.Mesh;
+        const hitBlock = placedBlocks.find(b => b.mesh === hitMesh) ?? null;
+
+        if (hitBlock) {
+          if (miningBlock !== hitBlock) {
+            miningBlock = hitBlock;
+            miningProgress = 0;
+            const def = getItem(hitBlock.id)?.block;
+            miningTotalTime = (def?.hardness ?? 5) / miningSpeed;
+          }
+
+          miningProgress += dt;
+          setMiningProgress(miningProgress / miningTotalTime);
+
+          if (!weaponAnimator.isAttacking()) {
+            weaponAnimator.onMouseDown(0);
+          }
+
+          if (miningProgress >= miningTotalTime) {
+            const minedId = miningBlock.id;
+            const dropPos  = miningBlock.mesh.position.clone();
+            removeBlock(miningBlock);
+            miningBlock = null;
+            miningProgress = 0;
+            setMiningProgress(null);
+            worldDrops.spawn(minedId, 1, dropPos, new THREE.Vector3(forwardX, 0, forwardZ));
+          }
+        } else {
+          miningBlock = null;
+          miningProgress = 0;
+          setMiningProgress(null);
+        }
+      } else {
+        miningBlock = null;
+        miningProgress = 0;
+        setMiningProgress(null);
+      }
+    } else if (!isMouseDownLeft || miningSpeed === 0) {
+      if (miningBlock) {
+        miningBlock = null;
+        miningProgress = 0;
+        setMiningProgress(null);
+      }
+    }
+  }
+  // ──────────────────────────────────────────────────────────────────────────
 
   renderer.render(scene, camera);
 
@@ -682,6 +1183,19 @@ function resizeRendererToDisplaySize(renderer) {
 
 createInventory();
 setHealth(8);
+
+// Mining progress bar
+const _miningBar = document.createElement('div');
+_miningBar.id = 'mining-progress';
+const _miningFill = document.createElement('div');
+_miningFill.id = 'mining-progress-fill';
+_miningBar.appendChild(_miningFill);
+document.body.appendChild(_miningBar);
+miningBarEl  = _miningBar;
+miningFillEl = _miningFill;
+
+// Give the player some stone to test with
+tryAddItem('stone', 20);
 
 
 document.addEventListener('keydown', (e) => {

@@ -180,7 +180,7 @@
         ]
       ]
     },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 },
+    "stats": { "damage": 12, "speed": 3, "range": 1.5, "miningSpeed": 2 },
     "speedModifier": 0.85,
     "equipDuration": 0.50
   },
@@ -217,7 +217,7 @@
         ]
       ]
     },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 },
+    "stats": { "damage": 12, "speed": 3, "range": 1.5, "miningSpeed": 3 },
     "speedModifier": 0.87,
     "equipDuration": 0.48
   },
@@ -254,7 +254,7 @@
         ]
       ]
     },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 },
+    "stats": { "damage": 12, "speed": 3, "range": 1.5, "miningSpeed": 5 },
     "speedModifier": 0.90,
     "equipDuration": 0.42
   },
@@ -291,7 +291,7 @@
         ]
       ]
     },
-    "stats": { "damage": 12, "speed": 3, "range": 1.5 },
+    "stats": { "damage": 12, "speed": 3, "range": 1.5, "miningSpeed": 6 },
     "speedModifier": 0.88,
     "equipDuration": 0.45
   },
@@ -376,5 +376,21 @@
     },
     "stats": { "damage": 12, "speed": 3, "range": 1.5 },
     "equipDuration": 0.20
+  },
+  "stone": {
+    "name": "Stone",
+    "tooltip": { "description": "solid rock, good for building" },
+    "slot": "block",
+    "image": "/gui/inventory/items/stone.svg",
+    "model": "",
+    "maxStack": 64,
+    "dropLightColor": "#888780",
+    "stats": {},
+    "speedModifier": 1.0,
+    "equipDuration": 0.15,
+    "block": {
+      "size": 3.0,
+      "hardness": 4.0
+    }
   }
 }
